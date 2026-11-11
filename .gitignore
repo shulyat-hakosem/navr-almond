@@ -1,0 +1,4 @@
+node_modules/
+screens/*.png
+*.log
+.DS_Store

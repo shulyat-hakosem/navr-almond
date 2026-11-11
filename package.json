@@ -1,0 +1,10 @@
+{
+  "name": "navr-almond",
+  "private": true,
+  "type": "module",
+  "description": "NA.V.R. – lesson 1: the almond rod (WebXR prototype). Static site, no build step.",
+  "scripts": {
+    "serve": "python3 -m http.server 8080",
+    "voice": "node tools/gen-voice.mjs"
+  }
+}
