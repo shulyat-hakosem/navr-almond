@@ -15,33 +15,74 @@ export const CONFIG = {
 
   // Every spoken line, in order of the lesson. `id` = file name in assets/audio/<id>.mp3.
   // `text` is the subtitle; `tts` (optional) is what the voice reads, if different.
-  // Niqqud only on the verses (Jeremiah 1:11–14); the teacher's own words are plain.
+  // v6: FULL niqqud on every line (subtitles + voice) — the niqqud steers the pronunciation.
+  // tools/gen-voice.mjs also reads: maqaf → space, ה׳ → אֲדֹנָי, כָּל → כֹּל, יְרוּשָׁלִַם → יְרוּשָׁלַיִם.
+  // Verses: Jeremiah 1 / Genesis 2:7, Miqra according to the Masorah (Sefaria), cantillation removed.
   lines: {
     // 1 · darkness
-    intro1:     { text: 'אנחנו בתוכנית אימון לנבואה.' },
-    intro2:     { text: 'התוכנית בודקת את היחס בין דימוי, מילים והקשבה.' },
-    closeEyes:  { text: 'עצום את העיניים.' },
-    openEyes:   { text: 'עכשיו פקח אותן.' },
+    intro1:     { text: 'אֲנַחְנוּ בְּתוֹכְנִית אִמּוּן לִנְבוּאָה.' },
+    intro2:     { text: 'הַתּוֹכְנִית בּוֹדֶקֶת אֶת הַיַּחַס בֵּין דִּמּוּי, מִלִּים וְהַקְשָׁבָה.' },
+    // title card · Jeremiah 1:11–12 (read aloud in darkness; the card shows the text, no subtitle)
+    tvAlmond:     { text: 'וַיְהִי דְבַר־ה׳ אֵלַי לֵאמֹר: מָה־אַתָּה רֹאֶה יִרְמְיָהוּ?' },
+    tvAlmondFull: { text: 'וַיְהִי דְבַר־ה׳ אֵלַי לֵאמֹר: מָה־אַתָּה רֹאֶה יִרְמְיָהוּ? וָאֹמַר: מַקֵּל שָׁקֵד אֲנִי רֹאֶה. וַיֹּאמֶר ה׳ אֵלַי: הֵיטַבְתָּ לִרְאוֹת, כִּי־שֹׁקֵד אֲנִי עַל־דְּבָרִי לַעֲשֹׂתוֹ.' },
+    closeEyes:  { text: 'עֲצוֹם אֶת הָעֵינַיִם.' },
+    openEyes:   { text: 'עַכְשָׁו פְּקַח אוֹתָן.' },
     // 2–3 · test one: the almond branch. The image opens through the word.
-    see:        { text: 'מה אתה רואה?' },
-    almond1:    { text: 'הנביא ענה: "מַקֵּל שָׁקֵד אֲנִי רֹאֶה".', tts: 'הנביא ענה: מַקֵּל שָׁקֵד אֲנִי רֹאֶה.' },
-    almond2:    { text: 'והוא שמע: "כִּי שֹׁקֵד אֲנִי עַל דְּבָרִי לַעֲשֹׂתוֹ".', tts: 'והוא שמע: כִּי שֹׁקֵד אֲנִי עַל דְּבָרִי לַעֲשֹׂתוֹ.' },
-    almond3:    { text: 'שקד. שוקד. אותן אותיות. התמונה נפתחת דרך המילה.', tts: 'שָׁקֵד. ... שׁוֹקֵד. ... אותן אותיות. התמונה נפתחת דרך המילה.' },
-    letters:    { text: 'גע באותיות. אין סדר נכון.' },
-    alsoThis:   { text: 'גם זה הוא.' },
-    // 4 · transition
-    lookAround: { text: 'תִּסְתַּכֵּל סְבִיבֶךָ.' },
-    hint:       { text: 'מאחוריך.' },
+    see:        { text: 'מָה אַתָּה רוֹאֶה?' },
+    // listening guide (only when the browser can hear the learner; otherwise silence → continue)
+    seeYes:     { text: 'כֵּן. גַּם הַנָּבִיא רָאָה כָּךְ.' },
+    seeOther:   { text: 'תּוֹדָה. כָּל רְאִיָּה הִיא הַתְחָלָה.', tts: 'תּוֹדָה. כֹּל רְאִיָּה, הִיא הַתְחָלָה.' },
+    almond1:    { text: 'הַנָּבִיא עָנָה: "מַקֵּל שָׁקֵד אֲנִי רֹאֶה".' },
+    almond2:    { text: 'וְהוּא שָׁמַע: "הֵיטַבְתָּ לִרְאוֹת, כִּי שֹׁקֵד אֲנִי עַל דְּבָרִי לַעֲשֹׂתוֹ".' },
+    almond3:    { text: 'שָׁקֵד. שׁוֹקֵד. אוֹתָן אוֹתִיּוֹת. הַתְּמוּנָה נִפְתַּחַת דֶּרֶךְ הַמִּלָּה.', tts: 'שָׁקֵד. ... שׁוֹקֵד. ... אוֹתָן אוֹתִיּוֹת. הַתְּמוּנָה נִפְתַּחַת דֶּרֶךְ הַמִּלָּה.' },
+    letters:    { text: 'גַּע בָּאוֹתִיּוֹת. אֵין סֵדֶר נָכוֹן.' },
+    alsoThis:   { text: 'גַּם זֶה הוּא.' },
+    // 4 · transition · title card · Jeremiah 1:13–16
+    tvPot:      { text: 'וַיְהִי דְבַר־ה׳ אֵלַי שֵׁנִית לֵאמֹר: מָה אַתָּה רֹאֶה?' },
+    tvPotFull:  { text: 'וַיְהִי דְבַר־ה׳ אֵלַי שֵׁנִית לֵאמֹר: מָה אַתָּה רֹאֶה? וָאֹמַר: סִיר נָפוּחַ אֲנִי רֹאֶה, וּפָנָיו מִפְּנֵי צָפוֹנָה.' },
+    lookAround: { text: 'הִסְתַּכֵּל סְבִיבְךָ.' },
+    hint:       { text: 'מֵאֲחוֹרֶיךָ.' },
     // 5 · test two: the pot. No wordplay this time.
+    potYes:     { text: 'כֵּן. וְשִׂים לֵב לְאָן הַכֹּל נוֹטֶה.' },
+    potDir:     { text: 'כֵּן. כִּוּוּן. זֶה בְּדִיּוּק הָעִנְיָן.' },
+    potOther:   { text: 'הִשָּׁאֵר עִם מָה שֶׁרָאִיתָ. וְשִׂים לֵב לְאָן הַכֹּל נִמְשָׁךְ.' },
     potVerse1:  { text: 'סִיר נָפוּחַ אֲנִי רֹאֶה, וּפָנָיו מִפְּנֵי צָפוֹנָה.' },
     potVerse2:  { text: 'מִצָּפוֹן תִּפָּתַח הָרָעָה עַל כָּל יֹשְׁבֵי הָאָרֶץ.' },
-    potNoWord:  { text: 'הפעם אין משחק מילים. סיר אינו נשמע כמו צפון.' },
-    potAbstract:{ text: 'המחשבה צריכה לזוז למקום אחר. צורה. כיוון. תנועה.' },
-    potBlown:   { text: 'ומהו סיר נפוח? סיר שנפחו בו. כמו כלי שהיוצר נושף בו צורה.' },
-    potBreath:  { text: 'כמו האדם: "וַיִּפַּח בְּאַפָּיו נִשְׁמַת חַיִּים".', tts: 'כמו האדם: וַיִּפַּח בְּאַפָּיו נִשְׁמַת חַיִּים.' },
-    potStay:    { text: 'הישאר איתו.' },
-    // 6 · exit
-    exit:       { text: 'המבחן השני נשאר פתוח. נחזור אליו.' },
+    potNoWord:  { text: 'הַפַּעַם אֵין מִשְׂחַק מִלִּים. סִיר אֵינוֹ נִשְׁמָע כְּמוֹ צָפוֹן.' },
+    potAbstract:{ text: 'הַמַּחְשָׁבָה צְרִיכָה לָזוּז לְמָקוֹם אַחֵר. צוּרָה. כִּוּוּן. תְּנוּעָה.' },
+    potBlown:   { text: 'וּמַהוּ סִיר נָפוּחַ? סִיר שֶׁנּוֹפְחִים בָּאֵשׁ שֶׁתַּחְתָּיו, עַד שֶׁהוּא רוֹתֵחַ.' },
+    potBreath:  { text: 'אוֹתוֹ שֹׁרֶשׁ, כְּמוֹ בָּאָדָם: "וַיִּפַּח בְּאַפָּיו נִשְׁמַת חַיִּים".' },
+    potVessel:  { text: 'הַסִּיר עַצְמוֹ הוּא רַק כְּלִי. אֵינְךָ רוֹאֶה מָה שֶׁבְּתוֹכוֹ. רַק רְתִיחָה, וְכִוּוּן.' },
+    potReads:   { text: 'הַנְּבוּאָה אֵינָהּ קוֹרֵאת אֶת הַתֹּכֶן. הִיא קוֹרֵאת אֶת הַכִּוּוּן.' },
+    potStay:    { text: 'הִשָּׁאֵר אִתּוֹ.' },
+    // 6 · into the pot: darkness, the army from the north, the fulfilment
+    intoPot:    { text: 'הַבֵּט לְתוֹכוֹ.' },
+    tvFulfil:   { text: 'כִּי הִנְנִי קֹרֵא לְכָל־מִשְׁפְּחוֹת מַמְלְכוֹת צָפוֹנָה, נְאֻם־ה׳, וּבָאוּ וְנָתְנוּ אִישׁ כִּסְאוֹ פֶּתַח שַׁעֲרֵי יְרוּשָׁלִַם.' },
+    fulfil1:    { text: 'כָּךְ הָיָה. מִבָּבֶל עָלָה נְבוּכַדְנֶאצַּר, וּצְבָאוֹתָיו בָּאוּ מִן הַצָּפוֹן.' },
+    fulfil2:    { text: 'בָּבֶל שׁוֹכֶנֶת בַּמִּזְרָח, אֲבָל הַדֶּרֶךְ מִמֶּנָּה עוֹבֶרֶת בַּצָּפוֹן, לְאֹרֶךְ נְהַר פְּרָת.' },
+    fulfil3:    { text: 'הֵם צָרוּ עַל יְרוּשָׁלַיִם. בִּשְׁנַת 586 לִפְנֵי הַסְּפִירָה נִפְרְצוּ חוֹמוֹתֶיהָ, וּבֵית הַמִּקְדָּשׁ הָרִאשׁוֹן עָלָה בָּאֵשׁ.',
+                  tts: 'הֵם צָרוּ עַל יְרוּשָׁלַיִם. בִּשְׁנַת חֲמֵשׁ מֵאוֹת שְׁמוֹנִים וָשֵׁשׁ לִפְנֵי הַסְּפִירָה, נִפְרְצוּ חוֹמוֹתֶיהָ, וּבֵית הַמִּקְדָּשׁ הָרִאשׁוֹן, עָלָה בָּאֵשׁ.' },
+    fulfil4:    { text: 'הַכְּלִי הָרֵיק הִתְמַלֵּא.' },
+    exit:       { text: 'כָּאן מִסְתַּיֵּם הַשִּׁעוּר הָרִאשׁוֹן.' },
+  },
+
+  // Title cards before each prophecy (shown in darkness, the verse read aloud).
+  // titleVerse: 'question' = only the opening ("מה אתה ראה?") so the test isn't given away;
+  //             'full' = the whole vision verse(s) on the card (also via URL ?titles=full).
+  titleVerse: 'question',
+  titles: {
+    almond: { prophet: 'יִרְמְיָהוּ', ref: 'פֶּרֶק א׳ · פְּסוּקִים יא–יב', line: 'tvAlmond', full: 'tvAlmondFull' },
+    pot:    { prophet: 'יִרְמְיָהוּ', ref: 'פֶּרֶק א׳ · פְּסוּקִים יג–טז', line: 'tvPot', full: 'tvPotFull' },
+    fulfil: { prophet: '', ref: 'יִרְמְיָהוּ א׳, טו', line: 'tvFulfil' },
+  },
+
+  // Listening guide (test): after "מה אתה רואה?" the learner may answer aloud (Web Speech API, he-IL,
+  // free, browser-provided). No recognition / no permission / error → silent fallback to the old pause.
+  listen: {
+    enabled: true,
+    almond: { yes: ['שקד', 'שקדיה', 'ענף', 'פרח', 'פריח', 'עץ', 'מקל', 'זרד', 'ציצ', 'ניצנ'] },
+    pot:    { dir: ['צפון', 'כיוון', 'נוטה', 'נוטים', 'זורם', 'נמשך', 'דרום', 'אליי', 'רוח'],
+              yes: ['סיר', 'אדים', 'רותח', 'רתיח', 'בועות', 'בועה', 'אש', 'קיטור', 'ניצוצ', 'גיצ', 'מבעבע', 'מים', 'עשן', 'כלי', 'קדרה'] },
   },
 
   // Verses that appear in space (Jeremiah 1:11–14)
@@ -76,9 +117,15 @@ export const CONFIG = {
     potAnswerPause: 10,    // 5: silence after "מה אתה רואה?"
     potVersePause: 4,      // 5: between the two verses
     potThink: 5,           // 5: silences between the teacher's sentences
-    potStay: 25,           // 5: stay with the pot (open; Yoni decides later)
-    exitFade: 10,          // 6: everything returns to darkness
-    endHold: 5,            // 6: silence before the end card
+    potStay: 15,           // 5: stay with the pot before the gaze goes in (skippable)
+    titleIn: 2.5,          // title card: prophet + reference fade in, in darkness
+    titleHold: 2.5,        // title card: hold after the verse was read
+    intoDescend: 9,        // 6: the gaze descends into the pot (it grows, opens beneath you)
+    intoSwallow: 4,        // 6: swallowed by sparks and steam → black
+    armyApproach: 11,      // 6: in the dark, Babylon's army approaches from the north before the voice
+    armyBetween: 2.5,      // 6: pauses between the fulfilment lines (the army keeps coming)
+    exitFade: 8,           // 6: the army passes, everything returns to silence
+    endHold: 4,            // 6: silence before the end card
   },
 
   // ── The look: texture, atmosphere, emotion. 0 switches an effect off. ──
@@ -154,6 +201,15 @@ export const CONFIG = {
     boilRise: 0.12,          // per second, toward full boil while still
     boilFall: 0.6,           // per second, calming when moving
     motionCalm: 0.5,         // head+hands speed (m/s) at which it is fully calm
+    boilMin: 0.35,           // never calmer than this: it always visibly boils
+    // v6 · "סיר נפוח": fanned by fire, the steam, sparks and flames all stream ONE way.
+    // flowDir = world direction of the stream. The pot stands at virtual north (+Z); [0,0,-1] =
+    // from the north toward the learner ("וּפָנָיו מִפְּנֵי צָפוֹנָה"). [0,0,1] would stream away, north.
+    flowDir: [0, 0, -1],
+    sparks: 160, flames: 48, sparkColor: 0xffb060, flameColor: 0xff7a2a,
+    sparkReach: 3.2,         // metres a spark travels along the flow (past the learner)
+    steamPush: 1.1,          // metres the steam is pushed along the flow
+    engulf: 260,             // sparks around the head when we are swallowed into the pot
   },
 
   // Gentle wind: sways the branch, carries the falling petals

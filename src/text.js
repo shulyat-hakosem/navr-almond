@@ -105,3 +105,53 @@ export function makeLetter(ch, size = 0.3) {
   hit.userData.owner = group;
   return group;
 }
+
+/**
+ * v6 · title card before each prophecy: prophet (large), chapter · verses (small, spaced), a thin
+ * ink rule, then the verse itself (full niqqud). Drawn over everything (depthTest off), in darkness.
+ * Returns { group, head, verse, set(prophet, ref, verseText) }; fade head / verse separately.
+ */
+export function makeTitleCard() {
+  const group = new THREE.Group();
+  const W = 1.5, PX = 2400;
+  const mk = (h) => {
+    const canvas = document.createElement('canvas'); canvas.width = PX; canvas.height = Math.round(PX * h / W);
+    const tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false, depthTest: false });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(W, h), mat); mesh.renderOrder = 12;
+    mesh.userData.ctx = canvas.getContext('2d'); mesh.userData.tex = tex; mesh.userData.canvas = canvas;
+    return mesh;
+  };
+  const head = mk(0.42), verse = mk(0.5);
+  head.position.y = 0.2; verse.position.y = -0.22;
+  group.add(head, verse);
+  const set = (prophet, ref, text) => {
+    { const { ctx, canvas, tex } = head.userData; const w = canvas.width, h = canvas.height;
+      ctx.clearRect(0, 0, w, h); ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = TEXT;
+      if (prophet) { ctx.font = `500 230px ${FONT}`; ctx.fillText(prophet, w / 2, h * 0.38); }
+      ctx.font = `400 ${prophet ? 92 : 110}px ${FONT}`; ctx.globalAlpha = 0.72;
+      ctx.letterSpacing = '6px';
+      ctx.fillText(ref, w / 2, prophet ? h * 0.76 : h * 0.55);
+      ctx.letterSpacing = '0px'; ctx.globalAlpha = 0.45;
+      ctx.fillRect(w * 0.42, h * 0.95, w * 0.16, 3);                        // the thin rule
+      ctx.globalAlpha = 1; tex.needsUpdate = true; }
+    { const { ctx, canvas, tex } = verse.userData; const w = canvas.width, h = canvas.height;
+      ctx.clearRect(0, 0, w, h); ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = TEXT;
+      // one line if it fits at a generous size; otherwise balanced lines (no orphan word)
+      let size = 136, lines;
+      for (; size >= 100; size -= 6) { ctx.font = `400 ${size}px ${FONT}`; if (ctx.measureText(text).width <= w * 0.9) break; }
+      if (size < 100) {
+        size = 124;
+        for (;; size -= 6) {
+          ctx.font = `400 ${size}px ${FONT}`;
+          const n = Math.ceil(ctx.measureText(text).width / (w * 0.88));
+          lines = wrap(ctx, text, Math.min(w * 0.9, ctx.measureText(text).width / n * 1.12));
+          if (lines.length * size * 1.7 <= h * 0.92 || size <= 60) break;
+        }
+      } else lines = [text];
+      const lh = size * 1.7;
+      lines.forEach((l, i) => ctx.fillText(l, w / 2, h * 0.46 + (i - (lines.length - 1) / 2) * lh));
+      tex.needsUpdate = true; }
+  };
+  return { group, head, verse, set };
+}

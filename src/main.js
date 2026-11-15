@@ -2,10 +2,11 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { buildWorld } from './world.js';
-import { loadFont, makeTextPanel, makeLetter } from './text.js';
+import { loadFont, makeTextPanel, makeLetter, makeTitleCard } from './text.js';
 import { Sound } from './audio.js';
 import { createInput } from './input.js';
 import { buildPot } from './pot.js';
+import { createListener } from './listen.js';
 
 const url = new URLSearchParams(location.search);
 const FAST = url.has('fast') ? 0.1 : 1;                       // ?fast=1  → everything 10× faster (testing)
@@ -31,6 +32,7 @@ camera.rotation.set(-0.14, 0.2, 0, 'YXZ');     // desktop: glance a little towar
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
 const sound = new Sound();
+const listener = createListener();
 const state = { stage: -1, mode: 'desktop', words: new Set(), started: false };
 window.NAVR = { state, CONFIG };                // small debug handle (console / tests)
 
@@ -53,15 +55,15 @@ function wait(sec, skippable = false) {
 
 // ── subtitles + voice ─────────────────────────────────────────────────────────
 let subs, speaking = false;
-async function speak(id) {
+async function speak(id, { subtitles = CONFIG.subtitles } = {}) {
   const line = CONFIG.lines[id];
-  speaking = true;
-  if (CONFIG.subtitles) { subs.userData.setText(line.text); fade(subs, 1, 0.6); }
+  speaking = true; state.spoken = (state.spoken || []).concat(id);
+  if (subtitles) { subs.userData.setText(line.text); fade(subs, 1, 0.6); }
   const v = FAST < 1 ? null : sound.playVoice(id);
   if (v) await v.ended; else await wait(Math.max(1.2, line.text.length * 0.085) * (FAST < 1 ? 0.15 : 1));
   speaking = false;
   await wait(0.5 * FAST);
-  if (CONFIG.subtitles) fade(subs, 0, 1.2);
+  if (subtitles) fade(subs, 0, 1.2);
 }
 function fade(obj, to, sec) {
   const mats = []; obj.traverse((o) => o.material && !o.material.userData.skipFade && mats.push(o.material));
@@ -70,7 +72,7 @@ function fade(obj, to, sec) {
 }
 
 // ── world ─────────────────────────────────────────────────────────────────────
-let world, flowers, pot, potVerse, lessonFrame, anchorW = new THREE.Vector3(), letters = [], slots, slotLines, wordLabel, verse, cont, endCard;
+let world, flowers, pot, title, veil, listenRing, potVerse, lessonFrame, anchorW = new THREE.Vector3(), letters = [], slots, slotLines, wordLabel, verse, cont, endCard;
 const SLOT_GAP = 0.42;
 let layoutY = 1.6;
 
@@ -85,6 +87,15 @@ function buildLessonObjects() {
   // subtitles: a panel that lazily follows the head, low in the field of view
   subs = makeTextPanel({ width: 1.3, height: 0.24, px: 1300, size: 58, overlay: true, bg: 'rgba(12,11,10,0.72)' });
   scene.add(subs);
+  // listening guide: a small breathing ring under the subtitles while the learner may answer aloud
+  listenRing = new THREE.Mesh(new THREE.RingGeometry(0.018, 0.024, 40), new THREE.MeshBasicMaterial({ color: P.text, transparent: true, opacity: 0, depthTest: false, depthWrite: false }));
+  listenRing.material.userData.skipFade = true; listenRing.renderOrder = 11; listenRing.position.set(0, -0.15, 0); subs.add(listenRing);
+
+  // v6 · title cards (prophet · chapter · verses, then the verse) in darkness
+  title = makeTitleCard(); title.group.visible = false; scene.add(title.group);
+  // v6 · the veil: a head-locked black sphere (swallowed by the pot → total darkness, also in passthrough)
+  veil = new THREE.Mesh(new THREE.SphereGeometry(0.6, 16, 12), new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.BackSide, transparent: true, opacity: 0, depthTest: false, depthWrite: false }));
+  veil.renderOrder = 9; veil.visible = false; scene.add(veil);
 
   // `frame` holds the lesson objects; it is turned to wherever the user looks when stage 3 starts
   lessonFrame = new THREE.Group(); scene.add(lessonFrame);
@@ -118,7 +129,7 @@ function buildLessonObjects() {
   const contTxt = makeTextPanel({ width: 0.4, height: 0.1, px: 400, size: 46 }); contTxt.userData.setText('המשך'); contTxt.position.y = -0.11;
   cont.add(ring, hitDisc, contTxt); cont.userData.hit = hitDisc; cont.userData.ring = ring;
 
-  endCard = makeTextPanel({ width: 1.4, height: 0.3, px: 1400, size: 70 }); endCard.userData.setText('NA.V.R.\u200E · שיעור ראשון · מקל השקד'); scene.add(endCard); endCard.visible = false;
+  endCard = makeTextPanel({ width: 1.4, height: 0.3, px: 1400, size: 70, overlay: true }); endCard.userData.setText('NA.V.R.\u200E · שיעור ראשון · מקל השקד'); scene.add(endCard); endCard.visible = false;
 }
 
 /** place lesson objects in front of where the user is and looks (seated or standing) */
@@ -135,6 +146,14 @@ function layout() {
   lessonFrame.updateMatrixWorld(true);
   const homes = [[-0.3, -0.2, -0.95], [0.5, -0.28, -0.9], [0.1, -0.14, -1.0]]; // relative to eye height // ש left, ק right, ד middle-high: not already in order
   letters.forEach((l, i) => l.userData.home.copy(lessonFrame.localToWorld(new THREE.Vector3(homes[i][0], layoutY + homes[i][1], homes[i][2]))));
+}
+/** put an object where the head looks (pitch clamped to ±25°), facing the head, upright */
+function placeGaze(obj, dist) {
+  const p = camera.getWorldPosition(new THREE.Vector3()), d = camera.getWorldDirection(new THREE.Vector3());
+  const pitch = THREE.MathUtils.clamp(Math.asin(THREE.MathUtils.clamp(d.y, -1, 1)), -0.44, 0.44);
+  const h = new THREE.Vector3(d.x, 0, d.z).normalize();
+  obj.position.copy(p).addScaledVector(h, dist * Math.cos(pitch)); obj.position.y += dist * Math.sin(pitch);
+  obj.lookAt(p);
 }
 /** put an object straight ahead of the head */
 function placeAhead(obj, dist, dy = 0) {
@@ -190,6 +209,7 @@ let motion = 0, boil = CONFIG.pot.boilBase;
 function setStageInstant(s) {               // used when starting from a later stage (?stage=N)
   if (s >= 2) { world.setReveal(1); flowers.setProgress(1); flowers.setPetals(true); world.setBloom(1); world.setDust(1); state.alive = true; sound.setWind(true, 3); }
   if (s >= 4) revealPotInstant();
+  if (s >= 5) world.setFocus(1);
 }
 function placePot() {
   pot.place(camera.getWorldPosition(new THREE.Vector3()).y);
@@ -206,6 +226,54 @@ function lookingAtPot() {
   return f.dot(d) > Math.cos(THREE.MathUtils.degToRad(CONFIG.pot.foundDeg));
 }
 
+/** v6 · a title card in darkness: prophet + chapter · verses, then the verse (niqqud) read aloud */
+async function titleCard(key) {
+  const c = CONFIG.titles[key];
+  const lineId = ((url.get('titles') || CONFIG.titleVerse) === 'full' && c.full) ? c.full : c.line;
+  title.set(c.prophet, c.ref, CONFIG.lines[lineId].text);
+  placeGaze(title.group, 1.75);
+  title.group.visible = true; state.titleShown = key; state.titles = (state.titles || []).concat(key);
+  fade(title.head, 1, T.titleIn); await wait(T.titleIn);
+  fade(title.verse, 1, 2); await wait(0.8 * FAST);
+  await speak(lineId, { subtitles: false });
+  await wait(T.titleHold);
+  fade(title.verse, 0, 2); await fade(title.head, 0, 2);
+  title.group.visible = false; state.titleShown = null;
+}
+
+/** v6 · "מה אתה רואה?" — the learner may answer aloud (where the browser can listen), else the old pause */
+async function askSee(kind, pause) {
+  await speak('see');
+  const canListen = listener.available && (state.mode === 'desktop' || state.micOK);
+  if (!canListen) { await wait(pause, true); return; }
+  const t0 = clockT; state.listening = true;
+  const h = listener.hear(pause, (t) => { subs.userData.setText('« ' + t + ' »'); fade(subs, 0.75, 0.3); });
+  advanceWaiters.push(h.cancel);
+  const text = await h.done;
+  state.listening = false; state.heard = text;
+  const k = listener.classify(text, CONFIG.listen[kind]);
+  if (!k) { fade(subs, 0, 0.6); const rest = pause - (clockT - t0); if (rest > 0.2) await wait(rest, true); return; }   // silence
+  const id = kind === 'almond' ? (k === 'yes' ? 'seeYes' : 'seeOther') : (k === 'dir' ? 'potDir' : k === 'yes' ? 'potYes' : 'potOther');
+  state.response = id;
+  await wait(0.6 * FAST);
+  await speak(id);
+  await wait(0.8 * FAST);
+}
+
+/** v6 · the pot's pose while the gaze descends into it (k 0..1) */
+let intoFrom = null;
+function intoPose(k, head, fwd) {
+  const g = pot.group;
+  if (!intoFrom) intoFrom = { p: g.position.clone(), q: g.quaternion.clone(), s: g.scale.x };
+  const S1 = 3.4, mouthY = pot.mouthLocal().y * S1;
+  const p1 = head.clone().addScaledVector(fwd, 0.3); p1.y = head.y - 0.5 - mouthY;
+  const q1 = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.12, Math.atan2(-fwd.x, -fwd.z), 0, 'YXZ'));
+  const e = k * k * (3 - 2 * k);
+  g.position.lerpVectors(intoFrom.p, p1, e); g.quaternion.slerpQuaternions(intoFrom.q, q1, e); g.scale.setScalar(intoFrom.s + (S1 - intoFrom.s) * e);
+  g.updateMatrixWorld(true); world.setPotPos(pot.center());
+  return p1;
+}
+
 const STAGES = [
   // 0 · Darkness — silence, then the faceless voice; eyes closed; eyes open
   async function dark() {
@@ -214,7 +282,9 @@ const STAGES = [
     await speak('intro1');
     await wait(T.betweenIntro);
     await speak('intro2');
-    await wait(1.2 * FAST);
+    await wait(1.5 * FAST);
+    await titleCard('almond');
+    await wait(1.5 * FAST);
     await speak('closeEyes');
     await wait(T.eyesClosed);
     await speak('openEyes');
@@ -234,8 +304,7 @@ const STAGES = [
   // 2 · Test one — "מה אתה רואה?", the verbal link, and the three letters (compact)
   async function almond() {
     state.alive = true;
-    await speak('see');
-    await wait(T.answerPause, true);
+    await askSee('almond', T.answerPause);
     await speak('almond1');
     layout();
     verse.userData.setText(CONFIG.verse); verse.visible = true; state.verseShown = true;
@@ -275,6 +344,8 @@ const STAGES = [
     await tween(T.sink, (k) => { world.setSink(k * 0.8); world.setBranchVis(1 - k); world.setDust(1 - k); }, (x) => x * x);
     letters.forEach((l) => (l.visible = false)); slots.visible = false; verse.visible = false;
     await wait(T.darkHold);
+    await titleCard('pot');
+    await wait(1.2 * FAST);
     placePot(); world.setFocus(1);
     sound.potStart(pot.center()); sound.potSet(0.55, boil); state.potShown = true;
     sound.breath(T.potReveal * 1.4);
@@ -295,12 +366,11 @@ const STAGES = [
       }, 100);
     });
   },
-  // 4 · Test two — the pot. No wordplay: form, direction, motion. What is a "blown" pot?
+  // 4 · Test two — the pot boils, fanned by fire; steam, sparks and flames stream one way. Form, direction, motion.
   async function potTest() {
     state.potStage = true;
     await wait(1.5 * FAST);
-    await speak('see');
-    await wait(T.potAnswerPause, true);
+    await askSee('pot', T.potAnswerPause);
     const c = pot.center();
     potVerse.position.copy(c).add(new THREE.Vector3(0, 0.62, 0));
     potVerse.userData.setText(CONFIG.potVerse); potVerse.visible = true; fade(potVerse, 1, 3); state.potVerseShown = true;
@@ -317,18 +387,66 @@ const STAGES = [
     await wait(1.5 * FAST);
     await speak('potBreath');
     await wait(T.potThink);
+    await speak('potVessel');
+    await wait(2 * FAST);
+    await speak('potReads');
+    await wait(T.potThink);
     await speak('potStay');
     await wait(T.potStay, true);
   },
-  // 5 · Quiet exit — the light leaves the pot; darkness; a small end card
+  // 5 · Into the pot (mirror of lesson 2's walk to the light): the gaze descends, we are swallowed by
+  //     sparks and steam, darkness — then Babylon's army comes from the north, and the voice tells how it came true.
   async function exit() {
+    state.into = true; state.boilLock = 1;
+    if (potVerse.visible) fade(potVerse, 0, 3);
+    await speak('intoPot');
+    const head = camera.getWorldPosition(new THREE.Vector3()), fwd = camera.getWorldDirection(new THREE.Vector3()); fwd.y = 0; fwd.normalize();
+    intoFrom = null; state.engulfHead = true;
+    const desk = !renderer.xr.isPresenting, q0 = camera.quaternion.clone();
+    sound.potSet(1, 1);
+    await tween(T.intoDescend, (k) => {
+      const p1 = intoPose(k, head, fwd);
+      pot.setEngulf(k * k * 0.35, headPos); pot.setHeat(0.15 + 0.85 * k);
+      if (desk) {                                                    // desktop preview: the gaze goes down into the mouth
+        const m = new THREE.Matrix4().lookAt(camera.position, new THREE.Vector3(p1.x, p1.y + pot.mouthLocal().y * 3.4, p1.z).lerp(camera.position.clone().addScaledVector(fwd, 0.6), 0.15), new THREE.Vector3(0, 1, 0));
+        camera.quaternion.slerpQuaternions(q0, new THREE.Quaternion().setFromRotationMatrix(m), k);
+      }
+    }, (x) => x);
+    state.intoDescended = true;
+    sound.swallow(T.intoSwallow * 1.3);
+    veil.visible = true;
+    const y0 = pot.group.position.y;
+    await tween(T.intoSwallow, (k) => {
+      pot.group.position.y = y0 + k * 1.1;                           // the mouth rises over the eyes
+      pot.setEngulf(0.35 + 0.65 * Math.min(1, k * 1.6), headPos);
+      veil.material.opacity = THREE.MathUtils.smoothstep(k, 0.35, 1);
+    }, (x) => x);
+    state.swallowed = true;
+    if (desk) { const qd = camera.quaternion.clone(), e = new THREE.Euler().setFromQuaternion(qd, 'YXZ'); const ql = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, e.y, 0, 'YXZ')); tween(3 * FAST, (k) => camera.quaternion.slerpQuaternions(qd, ql, k)); }
+    world.setPotVis(0); world.setDust(0); sound.potStop(1.5); state.potShown = false;
+    tween(2.5 * FAST, (k) => pot.setEngulf(1 - k, headPos)).then(() => { pot.setEngulf(0); state.engulfHead = false; });
+    // darkness: the army approaches from the north (+Z)
+    const hp = camera.getWorldPosition(new THREE.Vector3());
+    sound.armyStart(new THREE.Vector3(hp.x, 1.4, hp.z + 30), new THREE.Vector3(hp.x + 0.5, 1.4, hp.z + 3.5), T.armyApproach * 2.2);
+    state.army = true;
+    await wait(T.armyApproach);
+    sound.armyDuck(0.45);
+    await titleCard('fulfil');
+    await wait(1 * FAST);
+    await speak('fulfil1');
+    await wait(T.armyBetween);
+    await speak('fulfil2');
+    await wait(T.armyBetween);
+    await speak('fulfil3');
+    sound.armyStop(T.exitFade);
+    await wait(T.armyBetween);
+    await speak('fulfil4');
+    await wait(T.armyBetween);
     sound.fadeAll(T.exitFade);
-    const v = speak('exit');
-    if (potVerse.visible) fade(potVerse, 0, 4);
-    await tween(T.exitFade, (k) => { world.setPotVis(1 - k); world.setDust(0.6 * (1 - k)); });
-    await v;
+    await speak('exit');
     await wait(T.endHold);
-    placeAhead(endCard, 1.15, -0.22); endCard.visible = true; fade(endCard, 0.7, 4);
+    fade(veil, 0, 4).then(() => (veil.visible = false));               // passthrough: the real room returns
+    placeGaze(endCard, 1.15); endCard.visible = true; fade(endCard, 0.7, 4);
   },
 ];
 let turnAnim = null;
@@ -379,7 +497,8 @@ function frame() {
     prevHead = (prevHead || new THREE.Vector3()).copy(headPos); prevDir.copy(headDir);
     motion += (Math.min(sp, 3) - motion) * Math.min(1, dt * 2.5);
     const PC = CONFIG.pot;
-    const target = PC.interaction === 'stillness' ? THREE.MathUtils.clamp(1 - motion / PC.motionCalm, 0.1, 1) : PC.boilBase;
+    let target = PC.interaction === 'stillness' ? THREE.MathUtils.clamp(1 - motion / PC.motionCalm, PC.boilMin ?? 0.1, 1) : PC.boilBase;
+    if (state.boilLock) target = state.boilLock;
     boil = target > boil ? Math.min(target, boil + PC.boilRise * dt) : Math.max(target, boil - PC.boilFall * dt);
     pot.setBoil(boil); pot.update(time, dt, viewH);
     if (state.potShown && !state.done) sound.potSet(state.potHint && !state.potFound ? 1 : 0.6, boil);
@@ -403,6 +522,9 @@ function frame() {
   if (cont.visible) { cont.lookAt(headPos); cont.userData.ring.scale.setScalar(cont.userData.hit.userData.hover ? 1.35 : 1 + Math.sin(time * 1.5) * 0.04); }
   
   if (endCard.visible) endCard.lookAt(headPos);
+  if (veil.visible) veil.position.copy(headPos);
+  if (state.engulfHead) pot.engulf.position.copy(headPos);
+  listenRing.material.opacity += ((state.listening ? 0.45 + 0.25 * Math.sin(time * 3) : 0) - listenRing.material.opacity) * Math.min(1, dt * 4);
   if (potVerse.visible) potVerse.lookAt(headPos.x, potVerse.position.y, headPos.z);
 
   // subtitles lazily follow the head's yaw
@@ -416,7 +538,7 @@ function frame() {
 }
 
 // ── start-up / sessions ───────────────────────────────────────────────────────
-const ui = { overlay: document.getElementById('overlay'), vr: document.getElementById('enter-vr'), ar: document.getElementById('enter-ar'), desk: document.getElementById('enter-desktop'), note: document.getElementById('note') };
+const ui = { mic: document.getElementById('enable-mic'), overlay: document.getElementById('overlay'), vr: document.getElementById('enter-vr'), ar: document.getElementById('enter-ar'), desk: document.getElementById('enter-desktop'), note: document.getElementById('note') };
 
 async function begin(mode) {
   if (state.started) return;
@@ -424,6 +546,10 @@ async function begin(mode) {
   sound.unlock();                                     // inside the click = audio allowed
   ui.overlay.classList.add('hidden');
   const voices = sound.loadVoices();
+  // listening guide in VR: only if the microphone was already allowed (no prompt inside the headset)
+  if (listener.available && mode !== 'desktop' && !state.micOK && navigator.permissions) {
+    navigator.permissions.query({ name: 'microphone' }).then((p) => (state.micOK = p.state === 'granted')).catch(() => {});
+  }
   if (mode === 'vr' || mode === 'ar') {
     const session = await navigator.xr.requestSession(mode === 'ar' ? 'immersive-ar' : 'immersive-vr',
       { optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'] });
@@ -458,6 +584,14 @@ async function init() {
   ui.vr.onclick = () => begin('vr');
   ui.ar.onclick = () => begin('ar');
   ui.desk.onclick = () => begin('desktop');
+  // optional: allow the microphone before entering VR (listening guide); hidden where the browser can't listen
+  if (ui.mic) {
+    ui.mic.hidden = !listener.available;
+    ui.mic.onclick = async () => {
+      try { const st = await navigator.mediaDevices.getUserMedia({ audio: true }); st.getTracks().forEach((t) => t.stop()); state.micOK = true; ui.mic.textContent = 'הַקְשָׁבָה קוֹלִית פְּעִילָה ✓'; ui.mic.disabled = true; }
+      catch (e) { listener.disable(); ui.mic.hidden = true; }
+    };
+  }
   document.body.classList.add('ready');
   window.NAVR.ready = true;
   if (url.get('autostart') === 'desktop') begin('desktop');
@@ -500,12 +634,33 @@ function heroFrame(shot = url.get('shot') || 'branch') {
   const B = CONFIG.branch, H = CONFIG.hero || {};
   const time = 4.2;
   world.setLight(1);
-  if (shot === 'pot') {
+  if (shot === 'title') {
+    camera.position.set(0, 1.6, 0); camera.rotation.set(0, 0, 0, 'YXZ'); camera.updateMatrixWorld();
+    camera.getWorldPosition(headPos);
+    const key = url.get('card') || 'almond', c = CONFIG.titles[key];
+    const lineId = ((url.get('titles') || CONFIG.titleVerse) === 'full' && c.full) ? c.full : c.line;
+    title.set(c.prophet, c.ref, CONFIG.lines[lineId].text);
+    placeAhead(title.group, 1.75, 0.02); title.group.lookAt(0, title.group.position.y, 0); title.group.visible = true;
+    title.head.material.opacity = 1; title.verse.material.opacity = 1;
+    camera.fov = 62; camera.updateProjectionMatrix();
+  } else if (shot === 'into') {
     camera.position.set(0, 1.6, 0); camera.updateMatrixWorld();
-    revealPotInstant(); boil = 0.85; pot.setBoil(boil);
+    revealPotInstant(); boil = 1; pot.setBoil(1);
+    const c = pot.center(), fwd = c.clone().sub(camera.position); fwd.y = 0; fwd.normalize();
+    camera.position.copy(c).addScaledVector(fwd, -1.3); camera.position.y = 1.6; camera.updateMatrixWorld();
+    const head = camera.position.clone();
+    intoFrom = null; const p1 = intoPose(+(url.get('k') || 0.8), head, fwd);
+    camera.lookAt(p1.x + fwd.x * 0.05, p1.y + pot.mouthLocal().y * 3.4 * 0.8, p1.z + fwd.z * 0.05);
+    pot.setEngulf(+(url.get('engulf') || 0.6), head);
+    camera.fov = 70; camera.updateProjectionMatrix();
+    world.setDust(0.6);
+  } else if (shot === 'pot') {
+    camera.position.set(0, 1.6, 0); camera.updateMatrixWorld();
+    revealPotInstant(); boil = 0.9; pot.setBoil(boil);
     const c = pot.center(), dir = c.clone().sub(camera.position); dir.y = 0; dir.normalize();
-    camera.position.copy(c).addScaledVector(dir, -(+(url.get('dist') || 1.05))); camera.position.y = c.y + 0.3;
-    camera.lookAt(c.x, c.y + 0.12, c.z);
+    const side = new THREE.Vector3(-dir.z, 0, dir.x).multiplyScalar(+(url.get('side') || 0.9));   // from the side: the stream reads left→right
+    camera.position.copy(c).addScaledVector(dir, -(+(url.get('dist') || 1.1))).add(side); camera.position.y = c.y + 0.3;
+    camera.lookAt(c.x - dir.x * 0.35, c.y + 0.1, c.z - dir.z * 0.35);
     world.setDust(0.6);
   } else if (shot === 'dark') {
     camera.position.set(0, 1.6, 0); camera.rotation.set(-0.05, 0.2, 0, 'YXZ'); camera.updateMatrixWorld();
