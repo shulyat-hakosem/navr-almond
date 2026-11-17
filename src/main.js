@@ -6,6 +6,7 @@ import { loadFont, makeTextPanel, makeLetter, makeTitleCard } from './text.js';
 import { Sound } from './audio.js';
 import { createInput } from './input.js';
 import { buildPot } from './pot.js';
+import { buildInside } from './inside.js';
 import { createListener } from './listen.js';
 
 const url = new URLSearchParams(location.search);
@@ -72,7 +73,7 @@ function fade(obj, to, sec) {
 }
 
 // ── world ─────────────────────────────────────────────────────────────────────
-let world, flowers, pot, title, veil, listenRing, potVerse, lessonFrame, anchorW = new THREE.Vector3(), letters = [], slots, slotLines, wordLabel, verse, cont, endCard;
+let world, flowers, pot, inside, title, veil, listenRing, potVerse, lessonFrame, anchorW = new THREE.Vector3(), letters = [], slots, slotLines, wordLabel, verse, cont, endCard;
 const SLOT_GAP = 0.42;
 let layoutY = 1.6;
 
@@ -80,6 +81,7 @@ function buildLessonObjects() {
   world = buildWorld(scene);
   flowers = world.branch.flowers;
   pot = buildPot(scene);
+  inside = buildInside(scene);
   // nothing exists yet: darkness. The branch is drawn later; the pot is found later.
   world.setReveal(0); flowers.setProgress(0); world.setLight(1); world.setDust(0);
   potVerse = makeTextPanel({ width: 1.6, height: 0.26, px: 1600, size: 104, weight: 500 }); scene.add(potVerse); potVerse.visible = false;
@@ -209,7 +211,7 @@ let motion = 0, boil = CONFIG.pot.boilBase;
 function setStageInstant(s) {               // used when starting from a later stage (?stage=N)
   if (s >= 2) { world.setReveal(1); flowers.setProgress(1); flowers.setPetals(true); world.setBloom(1); world.setDust(1); state.alive = true; sound.setWind(true, 3); }
   if (s >= 4) revealPotInstant();
-  if (s >= 5) world.setFocus(1);
+  if (s >= 5) { world.setFocus(1); pot.setHeat(1); }
 }
 function placePot() {
   pot.place(camera.getWorldPosition(new THREE.Vector3()).y);
@@ -217,7 +219,7 @@ function placePot() {
 }
 function revealPotInstant() {
   world.setBranchVis(0); world.setSink(0.8); flowers.setPetals(false); state.alive = false;
-  placePot(); world.setFocus(1); world.setPotVis(1); sound.potStart(pot.center()); state.potShown = true; state.potFound = true;
+  placePot(); world.setFocus(1); world.setPotVis(1); sound.potStart(pot.center()); state.potShown = true; state.potFound = true; state.potHeating = true;
 }
 /** is the learner looking toward the pot? (yaw only, so it works seated) */
 function lookingAtPot() {
@@ -236,7 +238,7 @@ async function titleCard(key) {
   fade(title.head, 1, T.titleIn); await wait(T.titleIn);
   fade(title.verse, 1, 2); await wait(0.8 * FAST);
   await speak(lineId, { subtitles: false });
-  await wait(T.titleHold);
+  await wait(c.short ? T.titleHold * 0.5 : T.titleHold);
   fade(title.verse, 0, 2); await fade(title.head, 0, 2);
   title.group.visible = false; state.titleShown = null;
 }
@@ -347,7 +349,7 @@ const STAGES = [
     await titleCard('pot');
     await wait(1.2 * FAST);
     placePot(); world.setFocus(1);
-    sound.potStart(pot.center()); sound.potSet(0.55, boil); state.potShown = true;
+    sound.potStart(pot.center()); state.potShown = true; state.potHeating = true; state.heatT0 = clockT;   // cold: silent, still
     sound.breath(T.potReveal * 1.4);
     tween(T.potReveal, (k) => { world.setPotVis(k); world.setDust(k * 0.6); });
     await wait(T.potReveal * 0.4);
@@ -366,96 +368,78 @@ const STAGES = [
       }, 100);
     });
   },
-  // 4 · Test two — the pot boils, fanned by fire; steam, sparks and flames stream one way. Form, direction, motion.
+  // 4 · v7 · Test two — the pot lies on the floor, cold. It heats while you look. Few words; we don't know.
   async function potTest() {
     state.potStage = true;
-    await wait(1.5 * FAST);
-    await askSee('pot', T.potAnswerPause);
-    const c = pot.center();
-    potVerse.position.copy(c).add(new THREE.Vector3(0, 0.62, 0));
-    potVerse.userData.setText(CONFIG.potVerse); potVerse.visible = true; fade(potVerse, 1, 3); state.potVerseShown = true;
-    await speak('potVerse1');
-    await wait(T.potVersePause);
-    await speak('potVerse2');
-    await wait(T.potThink);
-    fade(potVerse, 0.35, 4);
-    await speak('potNoWord');
-    await wait(T.potThink);
-    await speak('potAbstract');
-    await wait(T.potThink);
-    await speak('potBlown');
-    await wait(1.5 * FAST);
-    await speak('potBreath');
-    await wait(T.potThink);
-    await speak('potVessel');
     await wait(2 * FAST);
-    await speak('potReads');
-    await wait(T.potThink);
-    await speak('potStay');
-    await wait(T.potStay, true);
+    await askSee('pot', T.potAnswerPause);
+    potVerse.position.copy(pot.center()).add(new THREE.Vector3(0, 0.75, 0));
+    potVerse.userData.setText(CONFIG.potVerse); potVerse.visible = true; fade(potVerse, 0.8, 3); state.potVerseShown = true;
+    await speak('potVerse1');
+    await wait(T.potQuiet);
+    fade(potVerse, 0, 4);
+    await speak('potSmith');
+    await wait(T.potQuiet);
+    await speak('potIron');
+    await wait(T.potQuiet);
+    await speak('potHeat');
+    await wait(T.potLong);
+    await speak('potUnknown');
+    await wait(T.potQuiet);
   },
-  // 5 · Into the pot (mirror of lesson 2's walk to the light): the gaze descends, we are swallowed by
-  //     sparks and steam, darkness — then Babylon's army comes from the north, and the voice tells how it came true.
+  // 5 · v7 · Into the pot — only when the learner gazes into its mouth (they decide). The light goes out;
+  //     inside, the iron walls are huge, firelit; Babylon's army passes on them as shadows, loud. The voice: short.
   async function exit() {
-    state.into = true; state.boilLock = 1;
-    if (potVerse.visible) fade(potVerse, 0, 3);
+    state.into = true;
     await speak('intoPot');
-    const head = camera.getWorldPosition(new THREE.Vector3()), fwd = camera.getWorldDirection(new THREE.Vector3()); fwd.y = 0; fwd.normalize();
-    intoFrom = null; state.engulfHead = true;
-    const desk = !renderer.xr.isPresenting, q0 = camera.quaternion.clone();
-    sound.potSet(1, 1);
-    await tween(T.intoDescend, (k) => {
-      const p1 = intoPose(k, head, fwd);
-      pot.setEngulf(k * k * 0.35, headPos); pot.setHeat(0.15 + 0.85 * k);
-      if (desk) {                                                    // desktop preview: the gaze goes down into the mouth
-        const m = new THREE.Matrix4().lookAt(camera.position, new THREE.Vector3(p1.x, p1.y + pot.mouthLocal().y * 3.4, p1.z).lerp(camera.position.clone().addScaledVector(fwd, 0.6), 0.15), new THREE.Vector3(0, 1, 0));
-        camera.quaternion.slerpQuaternions(q0, new THREE.Quaternion().setFromRotationMatrix(m), k);
-      }
-    }, (x) => x);
-    state.intoDescended = true;
-    sound.swallow(T.intoSwallow * 1.3);
+    // wait for a steady gaze into the mouth (or the lesson goes on by itself)
+    state.gazeWait = true; state.dwell = 0; const t0 = clockT;
+    await new Promise((res) => {
+      const tick = setInterval(() => {
+        if (!renderer.xr.isPresenting && clockT - t0 > 4 * FAST) turnCameraTo(pot.mouthWorld());   // desktop preview
+        if (state.dwell >= 1 || clockT - t0 > T.gazeMax || state.continuePressed) { clearInterval(tick); res(); }
+      }, 100);
+    });
+    state.gazeWait = false; state.continuePressed = false; state.gazeIn = true;
+    // swallowed: the mouth opens a little (in place), the boil roars, the light goes out
+    if (potVerse.visible) fade(potVerse, 0, 1);
+    sound.swallow(T.intoSwallow * 1.4);
     veil.visible = true;
-    const y0 = pot.group.position.y;
-    await tween(T.intoSwallow, (k) => {
-      pot.group.position.y = y0 + k * 1.1;                           // the mouth rises over the eyes
-      pot.setEngulf(0.35 + 0.65 * Math.min(1, k * 1.6), headPos);
-      veil.material.opacity = THREE.MathUtils.smoothstep(k, 0.35, 1);
-    }, (x) => x);
-    state.swallowed = true;
-    if (desk) { const qd = camera.quaternion.clone(), e = new THREE.Euler().setFromQuaternion(qd, 'YXZ'); const ql = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, e.y, 0, 'YXZ')); tween(3 * FAST, (k) => camera.quaternion.slerpQuaternions(qd, ql, k)); }
-    world.setPotVis(0); world.setDust(0); sound.potStop(1.5); state.potShown = false;
-    tween(2.5 * FAST, (k) => pot.setEngulf(1 - k, headPos)).then(() => { pot.setEngulf(0); state.engulfHead = false; });
-    // darkness: the army approaches from the north (+Z)
-    const hp = camera.getWorldPosition(new THREE.Vector3());
-    sound.armyStart(new THREE.Vector3(hp.x, 1.4, hp.z + 30), new THREE.Vector3(hp.x + 0.5, 1.4, hp.z + 3.5), T.armyApproach * 2.2);
+    await tween(T.intoSwallow, (k) => { pot.setGrow(0.25 * k); veil.material.opacity = THREE.MathUtils.smoothstep(k, 0.25, 1); }, (x) => x);
+    state.swallowed = true; state.t.swallowed = clockT;
+    if (!renderer.xr.isPresenting) { const qd = camera.quaternion.clone(), e = new THREE.Euler().setFromQuaternion(qd, 'YXZ'); const ql = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.05, e.y, 0, 'YXZ')); tween(2 * FAST, (k) => camera.quaternion.slerpQuaternions(qd, ql, k)); }   // desktop preview: look up at the walls
+    world.setPotVis(0); world.setDust(0); sound.potStop(1.5); state.potShown = false; state.potHeating = false;
+    // inside: the vessel is huge around you, still
+    inside.center(camera.getWorldPosition(new THREE.Vector3())); inside.set(0, 0); inside.setSpeed(inside.rep * 7 / 360);   // shadows circle at ~7°/s
+    veil.material.opacity = 1;
+    tween(T.insideIn, (k) => { veil.material.opacity = 1 - k; inside.set(k, 0); }).then(() => (veil.visible = false));
+    sound.armyStart(T.armyApproach);
     state.army = true;
-    await wait(T.armyApproach);
-    sound.armyDuck(0.45);
-    await titleCard('fulfil');
-    await wait(1 * FAST);
-    await speak('fulfil1');
+    await tween(T.armyApproach, (k) => inside.set(1, k));
+    sound.armyDuck(0.55);
+    await speak('in1');
     await wait(T.armyBetween);
-    await speak('fulfil2');
+    await speak('in2');
     await wait(T.armyBetween);
-    await speak('fulfil3');
+    await speak('in3');
+    await wait(T.armyBetween);
     sound.armyStop(T.exitFade);
-    await wait(T.armyBetween);
-    await speak('fulfil4');
-    await wait(T.armyBetween);
+    tween(T.exitFade, (k) => inside.set(1 - k, 1 - k)).then(() => inside.set(0, 0));
+    await wait(T.exitFade * 0.6);
     sound.fadeAll(T.exitFade);
     await speak('exit');
     await wait(T.endHold);
-    fade(veil, 0, 4).then(() => (veil.visible = false));               // passthrough: the real room returns
     placeGaze(endCard, 1.15); endCard.visible = true; fade(endCard, 0.7, 4);
   },
 ];
 let turnAnim = null;
-function turnCameraToPot() {
+function turnCameraToPot() { turnCameraTo(pot.center()); }
+function turnCameraTo(c) {
   if (turnAnim) return;
-  const c = pot.center(), from = camera.quaternion.clone();
+  const from = camera.quaternion.clone();
   const m = new THREE.Matrix4().lookAt(camera.position, c, new THREE.Vector3(0, 1, 0));
   const to = new THREE.Quaternion().setFromRotationMatrix(m);
-  turnAnim = tween(4 * FAST, (k) => camera.quaternion.slerpQuaternions(from, to, k));
+  turnAnim = tween(4 * FAST, (k) => camera.quaternion.slerpQuaternions(from, to, k)).then(() => (turnAnim = null));
 }
 
 async function runLesson() {
@@ -465,8 +449,9 @@ async function runLesson() {
   }
   layout();
   setStageInstant(START);
-  for (let s = START; s < STAGES.length; s++) { state.stage = s; console.log('[NAVR] stage', s); await STAGES[s](); }
-  state.stage = STAGES.length; state.done = true; console.log('[NAVR] done');
+  state.t = {};
+  for (let s = START; s < STAGES.length; s++) { state.stage = s; state.t[STAGES[s].name] = clockT; console.log('[NAVR] stage', s); await STAGES[s](); }
+  state.stage = STAGES.length; state.done = true; state.t.done = clockT; console.log('[NAVR] done');
 }
 
 // ── per-frame ─────────────────────────────────────────────────────────────────
@@ -489,20 +474,33 @@ function frame() {
   const tp = input.touchPoints();
   if (state.alive && world.interact(time, dt, tp.touch, input.mouseRay())) state.touches = (state.touches || 0) + 1;
   world.petalsTick(dt, time, tp.palms);
-  // the pot: boils more when the learner is still, calms when they move a lot (CONFIG.pot.interaction)
+  // v7 · the pot heats while the learner looks at it, faster when they come close or reach toward it
   {
     camera.getWorldDirection(headDir);
-    let sp = prevHead ? headPos.distanceTo(prevHead) / Math.max(dt, 1e-3) + prevDir.angleTo(headDir) / Math.max(dt, 1e-3) * 0.4 : 0;
-    tp.touch.forEach((p, k) => { if (p && prevHands[k]) sp += p.distanceTo(prevHands[k]) / Math.max(dt, 1e-3) * 0.5; prevHands[k] = p ? (prevHands[k] || new THREE.Vector3()).copy(p) : null; });
-    prevHead = (prevHead || new THREE.Vector3()).copy(headPos); prevDir.copy(headDir);
-    motion += (Math.min(sp, 3) - motion) * Math.min(1, dt * 2.5);
     const PC = CONFIG.pot;
-    let target = PC.interaction === 'stillness' ? THREE.MathUtils.clamp(1 - motion / PC.motionCalm, PC.boilMin ?? 0.1, 1) : PC.boilBase;
-    if (state.boilLock) target = state.boilLock;
-    boil = target > boil ? Math.min(target, boil + PC.boilRise * dt) : Math.max(target, boil - PC.boilFall * dt);
+    if (state.potHeating) {
+      let drive = 0;
+      if (lookingAtPot()) drive += PC.heatGaze;
+      const c = pot.center();
+      if (Math.hypot(headPos.x - c.x, headPos.z - c.z) < PC.nearDist || tp.touch.some((p) => p && p.distanceTo(c) < PC.handDist)) drive += PC.heatNear;
+      let h = pot.getHeat() + drive * dt / FAST;
+      h = Math.max(h, (clockT - (state.heatT0 ?? clockT)) * PC.heatFloor / FAST);
+      if (state.gazeIn) h = 1;
+      pot.setHeat(Math.min(1, h));
+      // a steady gaze into the mouth (the learner decides when to go in)
+      if (state.gazeWait) {
+        const m = pot.mouthWorld().sub(headPos).normalize();
+        const into = headDir.dot(m) > Math.cos(THREE.MathUtils.degToRad(PC.gazeDeg));
+        state.dwell = THREE.MathUtils.clamp((state.dwell || 0) + (into ? dt / T.gazeDwell : -dt / T.gazeDwell * 0.6), 0, 1);
+        pot.setGrow(0.04 * state.dwell);
+      }
+    }
+    const heat = pot.getHeat();
+    boil = THREE.MathUtils.smoothstep(heat, PC.boilFrom, 1) * (state.gazeWait ? 1 + 0.0 * state.dwell : 1);
     pot.setBoil(boil); pot.update(time, dt, viewH);
-    if (state.potShown && !state.done) sound.potSet(state.potHint && !state.potFound ? 1 : 0.6, boil);
+    if (state.potShown && !state.done) sound.potSet(state.potHint && !state.potFound ? 1 : 0.75, Math.max(boil, (state.dwell || 0) * 0.8), heat);
     sound.setListener(headPos, headDir, tmp.set(0, 1, 0).applyQuaternion(camera.getWorldQuaternion(tmpQ)));
+    inside.update(dt);
   }
 
   // letters: drift, bob, face the user
@@ -523,7 +521,6 @@ function frame() {
   
   if (endCard.visible) endCard.lookAt(headPos);
   if (veil.visible) veil.position.copy(headPos);
-  if (state.engulfHead) pot.engulf.position.copy(headPos);
   listenRing.material.opacity += ((state.listening ? 0.45 + 0.25 * Math.sin(time * 3) : 0) - listenRing.material.opacity) * Math.min(1, dt * 4);
   if (potVerse.visible) potVerse.lookAt(headPos.x, potVerse.position.y, headPos.z);
 
@@ -617,6 +614,7 @@ Object.assign(window.NAVR, {
   triangles: () => renderer.info.render.triangles,
   branchStats: () => world.stats(),
   potBoil: () => boil,
+  potHeat: () => pot.getHeat(),
   potCenter: () => pot.center().toArray(),
   lookingAtPot: () => lookingAtPot(),
   branchPoint: (i = 12) => world.branch.group.localToWorld(world.branch.touchPts[i].clone()).toArray(),
@@ -643,24 +641,18 @@ function heroFrame(shot = url.get('shot') || 'branch') {
     placeAhead(title.group, 1.75, 0.02); title.group.lookAt(0, title.group.position.y, 0); title.group.visible = true;
     title.head.material.opacity = 1; title.verse.material.opacity = 1;
     camera.fov = 62; camera.updateProjectionMatrix();
-  } else if (shot === 'into') {
-    camera.position.set(0, 1.6, 0); camera.updateMatrixWorld();
-    revealPotInstant(); boil = 1; pot.setBoil(1);
-    const c = pot.center(), fwd = c.clone().sub(camera.position); fwd.y = 0; fwd.normalize();
-    camera.position.copy(c).addScaledVector(fwd, -1.3); camera.position.y = 1.6; camera.updateMatrixWorld();
-    const head = camera.position.clone();
-    intoFrom = null; const p1 = intoPose(+(url.get('k') || 0.8), head, fwd);
-    camera.lookAt(p1.x + fwd.x * 0.05, p1.y + pot.mouthLocal().y * 3.4 * 0.8, p1.z + fwd.z * 0.05);
-    pot.setEngulf(+(url.get('engulf') || 0.6), head);
-    camera.fov = 70; camera.updateProjectionMatrix();
-    world.setDust(0.6);
+  } else if (shot === 'inside') {
+    if (!inside.loaded()) { setTimeout(() => heroFrame(shot), 200); return; }
+    camera.position.set(0, 1.6, 0); camera.rotation.set(+(url.get('pitch') || 0.05), +(url.get('yaw') || 0.4), 0, 'YXZ'); camera.updateMatrixWorld();
+    world.setBranchVis(0); world.setPotVis(0); world.setDust(0);
+    inside.center(camera.position); inside.set(1, 1); inside.setSpeed(1); inside.update(+(url.get('scroll') || 0.15));
+    camera.fov = 80; camera.updateProjectionMatrix();
   } else if (shot === 'pot') {
     camera.position.set(0, 1.6, 0); camera.updateMatrixWorld();
-    revealPotInstant(); boil = 0.9; pot.setBoil(boil);
-    const c = pot.center(), dir = c.clone().sub(camera.position); dir.y = 0; dir.normalize();
-    const side = new THREE.Vector3(-dir.z, 0, dir.x).multiplyScalar(+(url.get('side') || 0.9));   // from the side: the stream reads left→right
-    camera.position.copy(c).addScaledVector(dir, -(+(url.get('dist') || 1.1))).add(side); camera.position.y = c.y + 0.3;
-    camera.lookAt(c.x - dir.x * 0.35, c.y + 0.1, c.z - dir.z * 0.35);
+    revealPotInstant(); const h = +(url.get('heat') ?? 0); pot.setHeat(h); boil = THREE.MathUtils.smoothstep(h, CONFIG.pot.boilFrom, 1); pot.setBoil(boil);
+    const c = pot.center();
+    camera.lookAt(c.x, c.y - 0.05, c.z);
+    camera.fov = +(url.get('fov') || 70); camera.updateProjectionMatrix();
     world.setDust(0.6);
   } else if (shot === 'dark') {
     camera.position.set(0, 1.6, 0); camera.rotation.set(-0.05, 0.2, 0, 'YXZ'); camera.updateMatrixWorld();

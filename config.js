@@ -6,7 +6,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const CONFIG = {
-  // Voice used by tools/gen-voice.mjs (edge-tts). Alternatives: 'he-IL-HilaNeural'
+  // v7 · Voice: Google Gemini TTS (tools/gen-voice-gemini.mjs, needs GEMINI_API_KEY). Fallback: edge-tts (tools/gen-voice.mjs).
+  // almond lines: gemini-2.5-pro-preview-tts; pot lines: gemini-2.5-flash-preview-tts (the pro model's daily quota ran out). Same voice.
+  gemini: { model: 'gemini-2.5-flash-preview-tts', voice: 'Charon',
+            style: 'Read aloud in Hebrew, exactly as written, nothing else. Style: slow, quiet, low, mysterious and very clear, with small pauses between sentences.' },
   voice: { name: 'he-IL-AvriNeural', rate: '-15%', pitch: '-4Hz', volume: '+0%' },
 
   // Subtitles under the voice (true/false)
@@ -37,32 +40,25 @@ export const CONFIG = {
     almond3:    { text: 'שָׁקֵד. שׁוֹקֵד. אוֹתָן אוֹתִיּוֹת. הַתְּמוּנָה נִפְתַּחַת דֶּרֶךְ הַמִּלָּה.', tts: 'שָׁקֵד. ... שׁוֹקֵד. ... אוֹתָן אוֹתִיּוֹת. הַתְּמוּנָה נִפְתַּחַת דֶּרֶךְ הַמִּלָּה.' },
     letters:    { text: 'גַּע בָּאוֹתִיּוֹת. אֵין סֵדֶר נָכוֹן.' },
     alsoThis:   { text: 'גַּם זֶה הוּא.' },
-    // 4 · transition · title card · Jeremiah 1:13–16
-    tvPot:      { text: 'וַיְהִי דְבַר־ה׳ אֵלַי שֵׁנִית לֵאמֹר: מָה אַתָּה רֹאֶה?' },
-    tvPotFull:  { text: 'וַיְהִי דְבַר־ה׳ אֵלַי שֵׁנִית לֵאמֹר: מָה אַתָּה רֹאֶה? וָאֹמַר: סִיר נָפוּחַ אֲנִי רֹאֶה, וּפָנָיו מִפְּנֵי צָפוֹנָה.' },
+    // 4 · transition · title card · Jeremiah 1:13 (short: the opening only)
+    tvPot:      { text: 'וַיְהִי דְבַר־ה׳ אֵלַי שֵׁנִית.', tts: 'וַיְּהִי... דְּבַר ה׳ אֵלַי שֵׁנִית.' },
     lookAround: { text: 'הִסְתַּכֵּל סְבִיבְךָ.' },
     hint:       { text: 'מֵאֲחוֹרֶיךָ.' },
-    // 5 · test two: the pot. No wordplay this time.
-    potYes:     { text: 'כֵּן. וְשִׂים לֵב לְאָן הַכֹּל נוֹטֶה.' },
-    potDir:     { text: 'כֵּן. כִּוּוּן. זֶה בְּדִיּוּק הָעִנְיָן.' },
-    potOther:   { text: 'הִשָּׁאֵר עִם מָה שֶׁרָאִיתָ. וְשִׂים לֵב לְאָן הַכֹּל נִמְשָׁךְ.' },
-    potVerse1:  { text: 'סִיר נָפוּחַ אֲנִי רֹאֶה, וּפָנָיו מִפְּנֵי צָפוֹנָה.' },
-    potVerse2:  { text: 'מִצָּפוֹן תִּפָּתַח הָרָעָה עַל כָּל יֹשְׁבֵי הָאָרֶץ.' },
-    potNoWord:  { text: 'הַפַּעַם אֵין מִשְׂחַק מִלִּים. סִיר אֵינוֹ נִשְׁמָע כְּמוֹ צָפוֹן.' },
-    potAbstract:{ text: 'הַמַּחְשָׁבָה צְרִיכָה לָזוּז לְמָקוֹם אַחֵר. צוּרָה. כִּוּוּן. תְּנוּעָה.' },
-    potBlown:   { text: 'וּמַהוּ סִיר נָפוּחַ? סִיר שֶׁנּוֹפְחִים בָּאֵשׁ שֶׁתַּחְתָּיו, עַד שֶׁהוּא רוֹתֵחַ.' },
-    potBreath:  { text: 'אוֹתוֹ שֹׁרֶשׁ, כְּמוֹ בָּאָדָם: "וַיִּפַּח בְּאַפָּיו נִשְׁמַת חַיִּים".' },
-    potVessel:  { text: 'הַסִּיר עַצְמוֹ הוּא רַק כְּלִי. אֵינְךָ רוֹאֶה מָה שֶׁבְּתוֹכוֹ. רַק רְתִיחָה, וְכִוּוּן.' },
-    potReads:   { text: 'הַנְּבוּאָה אֵינָהּ קוֹרֵאת אֶת הַתֹּכֶן. הִיא קוֹרֵאת אֶת הַכִּוּוּן.' },
-    potStay:    { text: 'הִשָּׁאֵר אִתּוֹ.' },
-    // 6 · into the pot: darkness, the army from the north, the fulfilment
+    // 5 · v7 · test two: the pot. Cold, then it heats. Few words, long silences. We don't know — that is the point.
+    potYes:     { text: 'כֵּן. סִיר.' },
+    potDir:     { text: 'כֵּן. שִׂים לֵב לְאָן פָּנָיו.' },
+    potOther:   { text: 'הִשָּׁאֵר עִם מָה שֶׁאַתָּה רוֹאֶה.' },
+    potVerse1:  { text: 'סִיר נָפוּחַ אֲנִי רֹאֶה, וּפָנָיו מִפְּנֵי צָפוֹנָה.', tts: 'סִיר, נָפוּחַ, אֲנִי רֹאֶה. וּפָנָיו, מִפְּנֵי צָפוֹנָה.' },
+    potSmith:   { text: 'כְּלִי שֶׁנַּפָּח עָשָׂה בְּיָדָיו.' },
+    potIron:    { text: 'לֹא עֵץ שֶׁצּוֹמֵחַ. בַּרְזֶל.' },
+    potHeat:    { text: 'וְהַבַּרְזֶל מִתְחַמֵּם. כְּמוֹ מִלְחָמָה שֶׁמִּתְקָרֶבֶת.' },
+    potUnknown: { text: 'מָה בְּתוֹכוֹ? אֵינֶנּוּ יוֹדְעִים.' },
+    // 6 · into the pot (only after the gaze): the army on the iron walls, the interpretation, the fulfilment
     intoPot:    { text: 'הַבֵּט לְתוֹכוֹ.' },
-    tvFulfil:   { text: 'כִּי הִנְנִי קֹרֵא לְכָל־מִשְׁפְּחוֹת מַמְלְכוֹת צָפוֹנָה, נְאֻם־ה׳, וּבָאוּ וְנָתְנוּ אִישׁ כִּסְאוֹ פֶּתַח שַׁעֲרֵי יְרוּשָׁלִַם.' },
-    fulfil1:    { text: 'כָּךְ הָיָה. מִבָּבֶל עָלָה נְבוּכַדְנֶאצַּר, וּצְבָאוֹתָיו בָּאוּ מִן הַצָּפוֹן.' },
-    fulfil2:    { text: 'בָּבֶל שׁוֹכֶנֶת בַּמִּזְרָח, אֲבָל הַדֶּרֶךְ מִמֶּנָּה עוֹבֶרֶת בַּצָּפוֹן, לְאֹרֶךְ נְהַר פְּרָת.' },
-    fulfil3:    { text: 'הֵם צָרוּ עַל יְרוּשָׁלַיִם. בִּשְׁנַת 586 לִפְנֵי הַסְּפִירָה נִפְרְצוּ חוֹמוֹתֶיהָ, וּבֵית הַמִּקְדָּשׁ הָרִאשׁוֹן עָלָה בָּאֵשׁ.',
-                  tts: 'הֵם צָרוּ עַל יְרוּשָׁלַיִם. בִּשְׁנַת חֲמֵשׁ מֵאוֹת שְׁמוֹנִים וָשֵׁשׁ לִפְנֵי הַסְּפִירָה, נִפְרְצוּ חוֹמוֹתֶיהָ, וּבֵית הַמִּקְדָּשׁ הָרִאשׁוֹן, עָלָה בָּאֵשׁ.' },
-    fulfil4:    { text: 'הַכְּלִי הָרֵיק הִתְמַלֵּא.' },
+    in1:        { text: 'מִצָּפוֹן תִּפָּתַח הָרָעָה עַל כָּל יֹשְׁבֵי הָאָרֶץ.' },
+    in2:        { text: 'וְכָךְ הָיָה. נְבוּכַדְנֶאצַּר, מֶלֶךְ בָּבֶל, בָּא עִם צְבָאוֹ מִן הַצָּפוֹן.' },
+    in3:        { text: 'בִּשְׁנַת 586 לִפְנֵי הַסְּפִירָה, יְרוּשָׁלַיִם נִפְרְצָה, וּבֵית הַמִּקְדָּשׁ עָלָה בָּאֵשׁ.',
+                  tts: 'בִּשְׁנַת חֲמֵשׁ מֵאוֹת שְׁמוֹנִים וָשֵׁשׁ לִפְנֵי הַסְּפִירָה, יְרוּשָׁלַיִם נִפְרְצָה, וּבֵית הַמִּקְדָּשׁ עָלָה בָּאֵשׁ.' },
     exit:       { text: 'כָּאן מִסְתַּיֵּם הַשִּׁעוּר הָרִאשׁוֹן.' },
   },
 
@@ -72,8 +68,7 @@ export const CONFIG = {
   titleVerse: 'question',
   titles: {
     almond: { prophet: 'יִרְמְיָהוּ', ref: 'פֶּרֶק א׳ · פְּסוּקִים יא–יב', line: 'tvAlmond', full: 'tvAlmondFull' },
-    pot:    { prophet: 'יִרְמְיָהוּ', ref: 'פֶּרֶק א׳ · פְּסוּקִים יג–טז', line: 'tvPot', full: 'tvPotFull' },
-    fulfil: { prophet: '', ref: 'יִרְמְיָהוּ א׳, טו', line: 'tvFulfil' },
+    pot:    { prophet: 'יִרְמְיָהוּ', ref: 'פֶּרֶק א׳ · פָּסוּק יג', line: 'tvPot', short: true },
   },
 
   // Listening guide (test): after "מה אתה רואה?" the learner may answer aloud (Web Speech API, he-IL,
@@ -87,7 +82,7 @@ export const CONFIG = {
 
   // Verses that appear in space (Jeremiah 1:11–14)
   verse: 'כִּי שֹׁקֵד אֲנִי עַל דְּבָרִי לַעֲשֹׂתוֹ',
-  potVerse: 'סִיר נָפוּחַ אֲנִי רֹאֶה וּפָנָיו מִפְּנֵי צָפוֹנָה',
+  potVerse: 'סִיר נָפוּחַ אֲנִי רֹאֶה, וּפָנָיו מִפְּנֵי צָפוֹנָה',
 
   // Words recognised when the three letters sit in the slots (read right→left).
   // key = plain letters, value = label shown softly under the slots.
@@ -114,16 +109,18 @@ export const CONFIG = {
     potReveal: 6,          // 4: the light finds the pot
     potHintAfter: 10,      // 4: if the learner hasn't turned toward the pot after this → hint
     potFindMax: 45,        // 4: …and the lesson continues anyway after this
-    potAnswerPause: 10,    // 5: silence after "מה אתה רואה?"
-    potVersePause: 4,      // 5: between the two verses
-    potThink: 5,           // 5: silences between the teacher's sentences
-    potStay: 15,           // 5: stay with the pot before the gaze goes in (skippable)
+    // v7 · the pot (see CONFIG.pot for heating)
+    potAnswerPause: 7,     // 5: silence after "מה אתה רואה?" (skippable)
+    potQuiet: 3.5,         // 5: the silences between the few lines
+    potLong: 5,            // 5: the longer silence before "we don't know"
+    gazeDwell: 3.5,        // 5: a steady gaze into the mouth this long swallows the learner
+    gazeMax: 30,           // 5: …or the lesson goes on by itself after this
     titleIn: 2.5,          // title card: prophet + reference fade in, in darkness
     titleHold: 2.5,        // title card: hold after the verse was read
-    intoDescend: 9,        // 6: the gaze descends into the pot (it grows, opens beneath you)
-    intoSwallow: 4,        // 6: swallowed by sparks and steam → black
-    armyApproach: 11,      // 6: in the dark, Babylon's army approaches from the north before the voice
-    armyBetween: 2.5,      // 6: pauses between the fulfilment lines (the army keeps coming)
+    intoSwallow: 3.5,      // 6: the mouth grows a little, the light goes out (no motion toward the viewer)
+    insideIn: 4,           // 6: the inside of the pot appears around you (firelight, iron walls)
+    armyApproach: 6,       // 6: the army's shadows and sounds arrive before the voice
+    armyBetween: 2.5,      // 6: pauses between the lines (the army keeps passing)
     exitFade: 8,           // 6: the army passes, everything returns to silence
     endHold: 4,            // 6: silence before the end card
   },
@@ -183,33 +180,35 @@ export const CONFIG = {
 
   // Test two: the boiling pot at virtual NORTH (= +Z, behind the learner's start direction)
   pot: {
-    x: 0.75, z: 1.75,        // metres from the start point: behind, a little to the right
-    belowEye: 0.4,           // pot centre this far below eye height
-    tilt: 0.4,               // its face (mouth) tilts toward the learner: "ופניו מפני צפונה"
-    size: 1.25,              // overall size (1 ≈ 45 cm wide)
-    color: 0x5f4d3f,         // dark bronze / clay
-    water: 0x2a1d17,
-    steam: 70,               // steam particles
+    // v7: lying on the floor, close, tipped over, mouth turned toward the learner (its back to the north)
+    x: 0.15, z: 1.15,         // metres from the start point: behind the learner (virtual north), close
+    floorY: 0,               // the floor (local-floor reference space)
+    tilt: 1.2,               // tipped over onto its side (rad from upright)
+    turn: -0.55,             // …and turned sideways: the mouth at three-quarters toward the learner
+    roll: 0.18,              // a little askew: thrown, not placed
+    size: 1.75,              // overall size (1 ≈ 45 cm wide)
+    color: 0x4d4038,         // dark iron
+    glowColor: 0xff4a14,     // the iron's faint glow once hot
+    water: 0x1d1512,
+    steam: 46,               // steam particles (thin)
     steamColor: 0xffe6cf,
+    steamMax: 0.3,           // steam opacity at full heat
     shadows: true,
-    sunDir: [-0.55, 0.6, -0.55],   // direction TOWARD the invisible sun once it finds the pot (from the learner's side)
+    sunDir: [-0.75, 0.42, -0.5],   // direction TOWARD the invisible sun once it finds the pot (low, grazing: horror)
     foundDeg: 35,            // the learner "found" the pot when looking within this angle of it
-    // interaction, left open for Yoni. 'stillness': boils more when the learner is still/quiet,
-    // calms when they move a lot. 'none': boils steadily at boilBase.
-    interaction: 'stillness',
-    boilBase: 0.45,
-    boilRise: 0.12,          // per second, toward full boil while still
-    boilFall: 0.6,           // per second, calming when moving
-    motionCalm: 0.5,         // head+hands speed (m/s) at which it is fully calm
-    boilMin: 0.35,           // never calmer than this: it always visibly boils
-    // v6 · "סיר נפוח": fanned by fire, the steam, sparks and flames all stream ONE way.
-    // flowDir = world direction of the stream. The pot stands at virtual north (+Z); [0,0,-1] =
-    // from the north toward the learner ("וּפָנָיו מִפְּנֵי צָפוֹנָה"). [0,0,1] would stream away, north.
-    flowDir: [0, 0, -1],
-    sparks: 160, flames: 48, sparkColor: 0xffb060, flameColor: 0xff7a2a,
-    sparkReach: 3.2,         // metres a spark travels along the flow (past the learner)
-    steamPush: 1.1,          // metres the steam is pushed along the flow
-    engulf: 260,             // sparks around the head when we are swallowed into the pot
+    // heating: starts COLD (no fire). Heat rises while the learner looks at it, faster when close or reaching toward it.
+    heatGaze: 1 / 55,        // per second while looking at it
+    heatNear: 1 / 25,        // extra per second when the head is within nearDist, or a hand within handDist
+    nearDist: 0.75, handDist: 0.45,   // head: horizontal distance to the pot's centre
+    heatFloor: 1 / 90,       // the heat never lags behind this ramp (it develops even if nobody looks)
+    boilFrom: 0.3,           // heat at which the first bubbles appear
+    gazeDeg: 14,             // a gaze within this angle of the mouth counts as "looking into it"
+    flowDir: [0, 0, -1],     // the thin steam leans this way: from the north, toward the learner
+    sparks: 26, flames: 0, sparkColor: 0xffb060, flameColor: 0xff7a2a,
+    sparkMax: 0.25,          // only a few, only at full heat
+    sparkReach: 1.4,
+    steamPush: 0.45,
+    engulf: 0,
   },
 
   // Gentle wind: sways the branch, carries the falling petals

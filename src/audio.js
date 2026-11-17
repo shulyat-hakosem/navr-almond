@@ -127,15 +127,19 @@ export class Sound {
     const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 700; bp.Q.value = 0.9;
     const n = this._noise(3, true); n.connect(bp).connect(g); n.start();
     const pops = c.createGain(); pops.gain.value = 1; pops.connect(pan);
-    this.pot = { pan, g, pops, boil: 0.5, level: 0 };
+    this.pot = { pan, g, pops, boil: 0, level: 0, heat: 0 };
     const pop = () => {
       const P = this.pot; if (!P) return;
-      if (P.level > 0.01) {
+      if (P.heat > 0.04 && P.boil < 0.7 && Math.random() < 0.4 * (1 - P.boil)) {   // the cold iron ticks as it heats
+        const t = c.currentTime + Math.random() * 0.1; this._burst(P.pops, t, 0.025, 3200 + Math.random() * 2500, 0.05 + 0.08 * P.heat, 'bandpass', 6);
+        if (Math.random() < 0.3) this._burst(P.pops, t, 0.12, 180, 0.12 * P.heat, 'lowpass');                      // a low knock
+      }
+      if (P.level > 0.01 && P.boil > 0.03) {
         const t = c.currentTime, o = c.createOscillator(), og = c.createGain(); o.type = 'sine';
         const f = 260 + Math.random() * 700; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 1.8, t + 0.04);
         og.gain.setValueAtTime(0, t); og.gain.linearRampToValueAtTime(0.05 * P.level, t + 0.005); og.gain.exponentialRampToValueAtTime(0.0003, t + 0.07);
         o.connect(og).connect(P.pops); o.start(t); o.stop(t + 0.09);
-        if (Math.random() < 0.35) this._burst(P.pops, t + Math.random() * 0.05, 0.012, 2500 + Math.random() * 3000, 0.07 * P.level, 'highpass');  // fire crackle
+        if (Math.random() < 0.08) this._burst(P.pops, t + Math.random() * 0.05, 0.012, 2500 + Math.random() * 3000, 0.07 * P.level, 'highpass');  // fire crackle
       }
       this._potT = setTimeout(pop, 60 + Math.random() * 500 / (0.3 + P.boil * 1.5));
     };
@@ -145,9 +149,9 @@ export class Sound {
     if (pan.positionX) { pan.positionX.value = p.x; pan.positionY.value = p.y; pan.positionZ.value = p.z; } else pan.setPosition(p.x, p.y, p.z);
   }
   /** level 0..1 (overall loudness: the hint raises it), boil 0..1 (how hard it boils) */
-  potSet(level, boil) {
-    if (!this.pot) return;
-    const target = 0.16 * level * (0.4 + 0.6 * boil);
+  potSet(level, boil, heat = 0) {
+    if (!this.pot) return; this.pot.heat = heat;
+    const target = 0.16 * level * boil;
     if (Math.abs(target - (this.pot.target ?? -1)) > 0.004) { this.pot.target = target; this._ramp(this.pot.g.gain, target, 0.3); }
     this.pot.level = level; this.pot.boil = boil;
   }
@@ -178,55 +182,93 @@ export class Sound {
     s.connect(f).connect(g).connect(dest); s.start(t, Math.random() * 0.8); s.stop(t + dur + 0.02);
   }
 
-  // ── Babylon's army, approaching from the north (synthesised: no sound files) ──
-  // marching feet, galloping hooves, chariot wheels, clinking metal, a distant horn; HRTF from `from` → `to`.
-  armyStart(from, to, sec) {
+  // ── v7 · Babylon's army, INSIDE the pot: loud and present (synthesised: no sound files) ──
+  // war drums, marching feet, galloping hooves, whinnying horses, chariot wheels, clashing iron, shouts, horns.
+  // Not distance-attenuated: it surrounds the learner, its centre slowly circling (stereo pan), arriving from the north.
+  armyStart(sec = 6) {
     if (!this.ctx || this.army) return; const c = this.ctx, t0 = c.currentTime;
-    const pan = c.createPanner(); pan.panningModel = 'HRTF'; pan.distanceModel = 'inverse'; pan.refDistance = 2; pan.rolloffFactor = 0.6;
-    const set = (k, v, tt, ramp) => { const prm = pan['position' + k]; if (!prm) return; ramp ? prm.linearRampToValueAtTime(v, tt) : prm.setValueAtTime(v, tt); };
-    if (pan.positionX) { ['X', 'Y', 'Z'].forEach((k, i) => { set(k, [from.x, from.y, from.z][i], t0); set(k, [to.x, to.y, to.z][i], t0 + sec, true); }); } else pan.setPosition(to.x, to.y, to.z);
-    const g = c.createGain(); g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(0.9, t0 + sec);
-    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(500, t0); lp.frequency.exponentialRampToValueAtTime(5000, t0 + sec);   // far → near: it opens up
+    const bus = c.createGain(); bus.gain.setValueAtTime(0, t0); bus.gain.linearRampToValueAtTime(1, t0 + sec);
+    const comp = c.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 4; comp.attack.value = 0.005; comp.release.value = 0.25;
     const duck = c.createGain(); duck.gain.value = 1;
-    g.connect(lp).connect(duck).connect(pan).connect(this.ambGain);
-    // also a wide, unpositioned low rumble (the ground)
-    const rum = c.createGain(); rum.gain.setValueAtTime(0, t0); rum.gain.linearRampToValueAtTime(0.22, t0 + sec);
-    const rlp = c.createBiquadFilter(); rlp.type = 'lowpass'; rlp.frequency.value = 110;
-    const bn = this._noise(4, true); bn.connect(rlp).connect(rum).connect(duck); bn.start();
-    // chariot wheels: band-passed noise, rattling (amplitude LFO)
-    const wh = c.createGain(); wh.gain.value = 0.0;
-    const wbp = c.createBiquadFilter(); wbp.type = 'bandpass'; wbp.frequency.value = 260; wbp.Q.value = 1.4;
-    const lfo = c.createOscillator(); lfo.frequency.value = 7.5; const lg = c.createGain(); lg.gain.value = 0.12; lfo.connect(lg).connect(wh.gain); lfo.start();
+    const pan = c.createStereoPanner(); pan.pan.value = 0;
+    const lfoP = c.createOscillator(); lfoP.frequency.value = 0.045; const lpg = c.createGain(); lpg.gain.value = 0.55; lfoP.connect(lpg).connect(pan.pan); lfoP.start();
+    const g = c.createGain(); g.gain.value = 1.0;
+    g.connect(pan).connect(bus).connect(comp).connect(duck).connect(this.master);
+    // the ground: a low rumble
+    const rum = c.createGain(); rum.gain.value = 0.55; const rlp = c.createBiquadFilter(); rlp.type = 'lowpass'; rlp.frequency.value = 120;
+    const bn = this._noise(4, true); bn.connect(rlp).connect(rum).connect(bus); bn.start();
+    // chariot wheels: rattling band-passed noise
+    const wh = c.createGain(); wh.gain.value = 0.0; const wbp = c.createBiquadFilter(); wbp.type = 'bandpass'; wbp.frequency.value = 300; wbp.Q.value = 1.2;
+    const lfo = c.createOscillator(); lfo.frequency.value = 8.5; const lg = c.createGain(); lg.gain.value = 0.35; lfo.connect(lg).connect(wh.gain); lfo.start();
     const wn = this._noise(3); wn.connect(wbp).connect(wh).connect(g); wn.start();
-    this.army = { g, duck, rum, nodes: [bn, wn, lfo], next: t0 + 0.1, step: 0 };
-    // a distant horn, twice
-    [1.5, sec * 0.55].forEach((dt) => {
-      const t = t0 + dt, o = c.createOscillator(), o2 = c.createOscillator(), og = c.createGain(), hf = c.createBiquadFilter();
-      o.type = 'sawtooth'; o2.type = 'sawtooth'; o.frequency.setValueAtTime(98, t); o.frequency.linearRampToValueAtTime(110, t + 0.5); o2.frequency.setValueAtTime(147.5, t);
-      hf.type = 'lowpass'; hf.frequency.value = 700;
-      og.gain.setValueAtTime(0, t); og.gain.linearRampToValueAtTime(0.05, t + 0.6); og.gain.setValueAtTime(0.05, t + 2.2); og.gain.linearRampToValueAtTime(0, t + 3.4);
-      const o2g = c.createGain(); o2g.gain.value = 0.4; o2.connect(o2g).connect(hf);
-      o.connect(hf).connect(og).connect(g); o.start(t); o2.start(t); o.stop(t + 3.5); o2.stop(t + 3.5);
-    });
+    this.army = { g, bus, duck, nodes: [bn, wn, lfo, lfoP], next: t0 + 0.2, step: 0 };
+    [0.8, sec + 1.5, sec + 14].forEach((dt) => this._horn(g, t0 + dt));
     const tick = () => {
       const A = this.army; if (!A || A.stopped) return;
       while (A.next < c.currentTime + 0.6) {
         const t = A.next, beat = A.step;
-        // marching: many feet on every beat (≈ 110 bpm), a little ragged
-        for (let k = 0; k < 7; k++) this._burst(g, t + (Math.random() - 0.5) * 0.08, 0.09, 140 + Math.random() * 120, 0.16, 'lowpass');
-        if (beat % 2 === 0) this._burst(g, t + 0.01, 0.05, 1800, 0.035, 'bandpass', 2);      // gravel / sandals
-        // hooves: gallop triplets from a few horses, out of phase
-        for (let h = 0; h < 3; h++) { const ht = t + h * 0.17 + Math.random() * 0.03; [0, 0.075, 0.15].forEach((o, i) => { this._burst(g, ht + o, 0.05, 900 + i * 250, 0.07, 'bandpass', 3); this._burst(g, ht + o, 0.07, 120, 0.09, 'lowpass'); }); }
-        // metal: armour, bridles, spears
-        if (Math.random() < 0.6) {
-          const mt = t + Math.random() * 0.5, f0 = 1700 + Math.random() * 1400;
-          [1, 1.63, 2.41, 3.07].forEach((m, i) => { const o = c.createOscillator(), og = c.createGain(); o.frequency.value = f0 * m; og.gain.setValueAtTime(0, mt); og.gain.linearRampToValueAtTime(0.012 / (i + 1), mt + 0.003); og.gain.exponentialRampToValueAtTime(0.0002, mt + 0.25 + Math.random() * 0.3); o.connect(og).connect(g); o.start(mt); o.stop(mt + 0.6); });
-        }
-        A.step++; A.next += 0.545;
+        // war drum on 1 and 3, a heavier one on 1
+        if (beat % 2 === 0) this._drum(g, t, beat % 4 === 0 ? 1 : 0.7);
+        // marching: many feet, a little ragged
+        for (let k = 0; k < 9; k++) this._burst(g, t + (Math.random() - 0.5) * 0.09, 0.1, 130 + Math.random() * 140, 0.45, 'lowpass');
+        this._burst(g, t + 0.01, 0.06, 1900, 0.12, 'bandpass', 2);                       // gravel, sandals
+        // hooves: gallop triplets from several horses, out of phase
+        for (let hh = 0; hh < 4; hh++) { const ht = t + hh * 0.13 + Math.random() * 0.03; [0, 0.07, 0.14].forEach((o, i) => { this._burst(g, ht + o, 0.05, 800 + i * 260, 0.22, 'bandpass', 3); this._burst(g, ht + o, 0.08, 110, 0.4, 'lowpass'); }); }
+        // iron: weapons, armour, bridles
+        if (Math.random() < 0.75) this._clang(g, t + Math.random() * 0.5, Math.random() < 0.3 ? 1 : 0.5);
+        if (Math.random() < 0.16) this._neigh(g, t + Math.random() * 0.4);
+        if (Math.random() < 0.12) this._shout(g, t + Math.random() * 0.4);
+        A.step++; A.next += 0.5;
       }
       A.timer = setTimeout(tick, 200);
     };
     tick();
+  }
+  _drum(dest, t, k) {
+    const c = this.ctx, o = c.createOscillator(), og = c.createGain(); o.type = 'sine';
+    o.frequency.setValueAtTime(95, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.35);
+    og.gain.setValueAtTime(0, t); og.gain.linearRampToValueAtTime(0.9 * k, t + 0.008); og.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+    o.connect(og).connect(dest); o.start(t); o.stop(t + 0.65);
+    this._burst(dest, t, 0.08, 700, 0.25 * k, 'bandpass', 0.8);
+  }
+  _clang(dest, t, k) {
+    const c = this.ctx, f0 = 1300 + Math.random() * 1600;
+    [1, 1.51, 2.27, 2.98, 4.1].forEach((m, i) => { const o = c.createOscillator(), og = c.createGain(); o.frequency.value = f0 * m * (1 + (Math.random() - 0.5) * 0.01);
+      og.gain.setValueAtTime(0, t); og.gain.linearRampToValueAtTime(0.06 * k / (i + 1), t + 0.002); og.gain.exponentialRampToValueAtTime(0.0002, t + 0.35 + Math.random() * 0.5);
+      o.connect(og).connect(dest); o.start(t); o.stop(t + 0.9); });
+    this._burst(dest, t, 0.03, 4000, 0.15 * k, 'highpass');
+  }
+  /** a horse's whinny: a bright, shaking voice that rises then falls */
+  _neigh(dest, t) {
+    const c = this.ctx, d = 1.0 + Math.random() * 0.5, f = 520 + Math.random() * 220;
+    const o = c.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(f * 0.9, t); o.frequency.linearRampToValueAtTime(f * 1.5, t + d * 0.25); o.frequency.linearRampToValueAtTime(f * 1.2, t + d * 0.6); o.frequency.exponentialRampToValueAtTime(f * 0.55, t + d);
+    const vib = c.createOscillator(); vib.frequency.value = 16 + Math.random() * 6; const vg = c.createGain(); vg.gain.value = f * 0.07; vib.connect(vg).connect(o.frequency);
+    const f1 = c.createBiquadFilter(); f1.type = 'bandpass'; f1.frequency.value = 1150; f1.Q.value = 3;
+    const f2 = c.createBiquadFilter(); f2.type = 'bandpass'; f2.frequency.value = 2500; f2.Q.value = 4;
+    const og = c.createGain(); og.gain.setValueAtTime(0, t); og.gain.linearRampToValueAtTime(0.5, t + 0.06); og.gain.setValueAtTime(0.45, t + d * 0.7); og.gain.exponentialRampToValueAtTime(0.001, t + d);
+    o.connect(f1).connect(og); o.connect(f2).connect(og); og.connect(dest);
+    o.start(t); vib.start(t); o.stop(t + d + 0.05); vib.stop(t + d + 0.05);
+    this._burst(dest, t + d * 0.9, 0.35, 900, 0.15, 'bandpass', 0.7);   // the snort at the end
+  }
+  /** men shouting (a few voices at once) */
+  _shout(dest, t) {
+    const c = this.ctx;
+    for (let v = 0; v < 3; v++) {
+      const tt = t + v * 0.07, d = 0.45 + Math.random() * 0.4, o = c.createOscillator(); o.type = 'sawtooth';
+      const f = 140 + Math.random() * 70; o.frequency.setValueAtTime(f, tt); o.frequency.linearRampToValueAtTime(f * 1.25, tt + d * 0.3); o.frequency.linearRampToValueAtTime(f * 0.9, tt + d);
+      const og = c.createGain(); og.gain.setValueAtTime(0, tt); og.gain.linearRampToValueAtTime(0.16, tt + 0.05); og.gain.exponentialRampToValueAtTime(0.001, tt + d);
+      [[700, 6], [1150, 7], [2600, 8]].forEach(([fr, q]) => { const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = fr * (0.9 + Math.random() * 0.2); bp.Q.value = q; o.connect(bp).connect(og); });
+      og.connect(dest); o.start(tt); o.stop(tt + d + 0.05);
+    }
+  }
+  _horn(dest, t) {
+    const c = this.ctx, o = c.createOscillator(), o2 = c.createOscillator(), og = c.createGain(), hf = c.createBiquadFilter();
+    o.type = 'sawtooth'; o2.type = 'sawtooth'; o.frequency.setValueAtTime(98, t); o.frequency.linearRampToValueAtTime(110, t + 0.5); o2.frequency.setValueAtTime(147.5, t);
+    hf.type = 'lowpass'; hf.frequency.value = 900;
+    og.gain.setValueAtTime(0, t); og.gain.linearRampToValueAtTime(0.22, t + 0.6); og.gain.setValueAtTime(0.22, t + 2.2); og.gain.linearRampToValueAtTime(0, t + 3.4);
+    const o2g = c.createGain(); o2g.gain.value = 0.5; o2.connect(o2g).connect(hf); o.connect(hf).connect(og).connect(dest);
+    o.start(t); o2.start(t); o.stop(t + 3.5); o2.stop(t + 3.5);
   }
   /** duck the army under the narrator (0..1) */
   armyDuck(k, sec = 0.8) { if (this.army) this._ramp(this.army.duck.gain, k, sec); }

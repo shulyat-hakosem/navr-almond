@@ -1,4 +1,5 @@
-// Test two: the boiling pot (סיר נפוח), placed at virtual NORTH, its face tilted toward the learner.
+// Test two: the boiling pot (סיר נפוח). v7: it lies on the floor at virtual NORTH, close, tipped over, its mouth
+// turned toward the learner. It starts COLD and heats up while the learner looks / comes close / reaches toward it.
 // Same look as the branch: faceted, toon-lit by the invisible sun, paper grain + ink hatching.
 // Draw calls: body+handles (1) · boiling surface (1) · steam (1).
 import * as THREE from 'three';
@@ -49,15 +50,15 @@ export function buildPot(scene) {
         vec2 q = uv * sc, id = floor(q), f = fract(q);
         float hh = h(id + sd); vec2 c = vec2(h(id + sd + 1.7), h(id + sd + 5.3)) * 0.6 + 0.2;
         float ph = fract(uTime * (0.4 + hh * 0.7) * (0.35 + 1.5 * uBoil) + hh * 7.0);
-        float on = step(hh, 0.18 + 0.62 * uBoil), r = ph * 0.3 * (0.55 + hh), d = length(f - c);
+        float on = step(hh, 0.75 * uBoil), r = ph * 0.3 * (0.55 + hh), d = length(f - c);
         return (smoothstep(0.045, 0.0, abs(d - r)) + smoothstep(r, 0.0, d) * 0.3) * (1.0 - ph) * (1.0 - ph) * on;
       }
       void main(){
-        vec2 uv = vUv + 0.03 * vec2(sin(vUv.y * 9.0 + uTime * 1.3), cos(vUv.x * 8.0 - uTime * 1.1)) * (0.5 + uBoil);   // churning
+        vec2 uv = vUv + 0.03 * vec2(sin(vUv.y * 9.0 + uTime * 1.3), cos(vUv.x * 8.0 - uTime * 1.1)) * (0.05 + 1.1 * uBoil);   // churning (still when cold)
         float b = bub(uv, 7.0, 0.0) + bub(uv + 0.37, 12.0, 3.1) * 0.8 + bub(uv + 0.71, 21.0, 7.7) * 0.6;
-        float swirl = 0.5 + 0.5 * sin(uv.x * 21.0 + uTime * (0.6 + uBoil) + sin(uv.y * 17.0 - uTime));
-        vec3 ember = vec3(1.0, 0.42, 0.12) * (0.04 + 1.1 * uHeat) * uBoil * (0.6 + 0.4 * sin(uTime * 2.3 + uv.x * 11.0 + uv.y * 7.0)) * (1.0 - swirl * 0.6);
-        vec3 c = uWater * (0.7 + 0.3 * swirl) * (1.0 - 0.55 * uHeat) + mix(uLight, vec3(1.3, 0.62, 0.22), uHeat) * b * (0.28 + 0.4 * uBoil + uHeat * 0.15) + ember;
+        float swirl = 0.5 + 0.5 * sin(uv.x * 21.0 + uTime * (0.08 + uBoil) + sin(uv.y * 17.0 - uTime));
+        vec3 ember = vec3(1.0, 0.38, 0.1) * (0.02 + 0.4 * uHeat) * uBoil * (0.6 + 0.4 * sin(uTime * 2.3 + uv.x * 11.0 + uv.y * 7.0)) * (1.0 - swirl * 0.6);
+        vec3 c = uWater * (0.7 + 0.3 * swirl) * (1.0 - 0.55 * uHeat) + mix(uLight, vec3(1.2, 0.6, 0.25), uHeat * 0.7) * b * (0.07 + 0.14 * uBoil) + ember * 0.5;
         float edge = smoothstep(0.5, 0.42, length(vUv - 0.5));
         gl_FragColor = vec4(c * uVis * (0.6 + 0.4 * edge), 1.0);
         #include <colorspace_fragment>
@@ -68,7 +69,7 @@ export function buildPot(scene) {
   // ── v6 · "סיר נפוח": everything streams ONE way (CONFIG.pot.flowDir, world space) ──
   // uUp / uFlow are the world up + flow directions expressed in the pot's local frame (it is tilted).
   const uUp = { value: new THREE.Vector3(0, 1, 0) }, uFlow = { value: new THREE.Vector3(0, 0, -1) }, uGust = { value: 0.5 };
-  const uScale = { value: 900 }, uSteam = { value: 0.5 }, uFire = { value: 1 };
+  const uScale = { value: 900 }, uSteam = { value: 0 }, uFire = { value: 0 };
   const S = C.size, lip = 0.28 * S;
   const points = (n, fill) => {
     const pos = [], seed = [], jit = [];
@@ -153,7 +154,7 @@ export function buildPot(scene) {
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
   });
   const flames = new THREE.Points(points(C.flames, (pos) => { const a = r() * 6.283, rr = (0.15 + r() * 0.07) * S; pos.push(Math.cos(a) * rr, -0.02 * S + r() * 0.03 * S, Math.sin(a) * rr); }), flameMat);
-  flames.frustumCulled = false; flames.renderOrder = 3; group.add(flames);
+  flames.frustumCulled = false; flames.renderOrder = 3; flames.visible = C.flames > 0; group.add(flames);
 
   // swallowed: a cloud of sparks + embers around the head (world space, only in the last stage)
   const uEngulf = { value: 0 };
@@ -180,36 +181,60 @@ export function buildPot(scene) {
   { const j = engulf.geometry.attributes.aJit; for (let i = 0; i < j.count; i++) { const v = new THREE.Vector3(j.getX(i), j.getY(i), j.getZ(i)).normalize(); j.setXYZ(i, v.x, v.y, v.z); } }
   engulf.frustumCulled = false; engulf.renderOrder = 6; engulf.visible = false; scene.add(engulf);
 
-  // place at virtual north, its face (mouth) tilted toward the learner
-  let eyeY = 1.6;
-  function place(eye = eyeY) {
-    eyeY = eye;
-    group.position.set(C.x, eye - C.belowEye, C.z);
-    group.rotation.set(C.tilt, Math.atan2(-C.x, -C.z), 0, 'YXZ');
+  // v7 · lying on the floor at virtual north, close, tipped over: mouth turned toward the learner (its back to the north)
+  const floorY = C.floorY ?? 0;
+  const ground = new THREE.Group(); scene.add(ground);           // a faint pool on the floor + contact shadow (not tilted)
+  const gradTex = (stops) => { const cv = document.createElement('canvas'); cv.width = cv.height = 128; const x = cv.getContext('2d'), g = x.createRadialGradient(64, 64, 0, 64, 64, 64); stops.forEach(([o, c]) => g.addColorStop(o, c)); x.fillStyle = g; x.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(cv); };
+  const pool = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6), new THREE.MeshBasicMaterial({ map: gradTex([[0, 'rgba(92,78,64,0.75)'], [0.4, 'rgba(52,44,37,0.45)'], [1, 'rgba(20,16,14,0)']]), transparent: true, depthWrite: false }));
+  const blob = new THREE.Mesh(new THREE.PlaneGeometry(0.9 * S, 0.6 * S), new THREE.MeshBasicMaterial({ map: gradTex([[0, 'rgba(0,0,0,0.85)'], [1, 'rgba(0,0,0,0)']]), transparent: true, depthWrite: false }));
+  const glowFloor = new THREE.Mesh(new THREE.PlaneGeometry(1.1 * S, 1.1 * S), new THREE.MeshBasicMaterial({ map: gradTex([[0, 'rgba(255,90,30,0.6)'], [1, 'rgba(255,60,20,0)']]), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 }));
+  [pool, blob, glowFloor].forEach((m, i) => { m.rotation.x = -Math.PI / 2; m.position.y = floorY + 0.002 + i * 0.001; m.renderOrder = 1; ground.add(m); });
+  const box = new THREE.Box3();
+  function place(eye) {
+    const yaw = Math.atan2(-C.x, -C.z) + (C.turn ?? 0);   // turn: lie sideways, mouth at three-quarters
+    group.position.set(C.x, floorY, C.z);
+    group.rotation.set(C.tilt, yaw, C.roll ?? 0, 'YXZ');
     group.scale.setScalar(1);
     group.updateMatrixWorld(true);
+    box.setFromObject(mesh, true); group.position.y += floorY - box.min.y + 0.005;   // resting on the floor
+    group.updateMatrixWorld(true);
+    ground.position.set(group.position.x, 0, group.position.z); ground.rotation.y = yaw;
+    blob.position.set(0, blob.position.y, -0.02); pool.position.z = -0.25;
   }
   place();
-  let boil = C.boilBase;
+  let boil = 0, heat = 0;
+  const glowCol = new THREE.Color(C.glowColor ?? 0xff4a14);
   const flowW = new THREE.Vector3(...C.flowDir).normalize(), qInv = new THREE.Quaternion();
   function update(time, dt, viewH) {
     uScale.value = viewH;
     uBoil.value = boil;
-    uSteam.value = 0.4 + 0.6 * boil;
+    const h = heat;
+    uHeat.value = 0.05 + 0.95 * h;
+    uSteam.value = (C.steamMax ?? 0.6) * THREE.MathUtils.smoothstep(h, 0.15, 0.85);
+    uFire.value = (C.sparkMax ?? 0.25) * THREE.MathUtils.smoothstep(h, 0.8, 1.0);
     uGust.value = 0.5 + 0.5 * Math.sin(time * 0.9) * Math.sin(time * 0.31 + 1.0);
-    group.visible = U.uPotVis.value > 0.001;
+    // the iron itself begins to glow, from below, faintly (never fully red)
+    const g = THREE.MathUtils.smoothstep(h, 0.35, 1.0) * (0.85 + 0.15 * Math.sin(time * 1.7));
+    mat.emissive.copy(glowCol).multiplyScalar(0.045 * g * U.uPotVis.value);
+    glowFloor.material.opacity = 0.45 * g * U.uPotVis.value;
+    pool.material.opacity = blob.material.opacity = U.uPotVis.value * ground.userData.vis;
+    group.visible = ground.visible = U.uPotVis.value > 0.001;
     group.updateMatrixWorld(true);
     group.getWorldQuaternion(qInv).invert();
     uUp.value.set(0, 1, 0).applyQuaternion(qInv);
     uFlow.value.copy(flowW).applyQuaternion(qInv);
-    // the pot shivers a little when it boils hard
-    mesh.position.y = Math.sin(time * 23.0) * 0.002 * boil * boil;
+    // the pot shivers a little when it boils hard; now and then a knock from inside
+    mesh.position.y = Math.sin(time * 23.0) * 0.0015 * boil * boil + knock * 0.006;
+    knock = Math.max(0, knock - dt * 6);
     surf.position.y = 0.262 * C.size + Math.sin(time * 9.0) * 0.003 * boil;
   }
+  let knock = 0; ground.userData.vis = 1;
   return {
     group, place, update, material: mat, engulf,
     setEngulf: (k, head) => { uEngulf.value = k; engulf.visible = k > 0.001; if (head) engulf.position.copy(head); },
-    setFire: (k) => (uFire.value = k), setHeat: (k) => (uHeat.value = k),
+    setHeat: (k) => (heat = k), getHeat: () => heat, knock: () => (knock = 1),
+    setGrow: (k) => { group.scale.setScalar(1 + k); },
+    mouthWorld: () => group.localToWorld(new THREE.Vector3(0, 0.27 * C.size, 0)),
     mouthLocal: () => new THREE.Vector3(0, 0.262 * C.size, 0),
     center: () => group.localToWorld(new THREE.Vector3(0, 0.15 * C.size, 0)),
     setBoil: (k) => (boil = k), getBoil: () => boil,
